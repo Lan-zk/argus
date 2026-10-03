@@ -69,7 +69,7 @@ const failedNames = computed(() => props.report.failedCategoryIds.map(catName));
             <td style="font-family: var(--sans); font-size: 12px">{{ s.summary }}</td>
           </tr>
           <tr v-for="fid in report.failedCategoryIds" :key="fid" class="failed-row">
-            <td><span class="csq" style="background: var(--red)"></span>{{ catName(fid) }}（失败）</td>
+            <td><span class="csq" style="background: var(--danger)"></span>{{ catName(fid) }}（失败）</td>
             <td>—</td>
             <td>—</td>
             <td>—</td>

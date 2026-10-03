@@ -10,7 +10,7 @@ import {
 } from "./persistence";
 import { keyring } from "./keyring";
 import { parseBlocks } from "../domain/parser";
-import type { PersistedReview, ModelConfig } from "../domain/types";
+import type { PersistedReview, ModelConfig, UiPrefs } from "../domain/types";
 
 beforeEach(async () => {
   // 每个用例前清空（开发模式内存兜底存储）
@@ -36,6 +36,25 @@ describe("设置保存范围（spec: 应用状态保存范围）", () => {
     expect(loaded.settings.categories[0].prompt).toBe("修改后的逻辑 Prompt。");
     expect(loaded.settings.draftText).toBe("当前输入文本草稿");
     expect(loaded.settings.ui.splitPercent).toBe(50);
+  });
+
+  it("旧数据缺 theme/appearance 字段时合并默认值 swiss/system（spec: theme-system 偏好持久化与默认值）", async () => {
+    const settings = defaultSettings();
+    await saveSettings({ ...settings, ui: { splitPercent: 55 } as UiPrefs }); // 模拟旧版本写入的数据
+    const loaded = await loadState();
+    expect(loaded.settings.ui.splitPercent).toBe(55);
+    expect(loaded.settings.ui.theme).toBe("swiss");
+    expect(loaded.settings.ui.appearance).toBe("system");
+  });
+
+  it("主题偏好保存后恢复", async () => {
+    const settings = defaultSettings();
+    settings.ui.theme = "apple";
+    settings.ui.appearance = "dark";
+    await saveSettings(settings);
+    const loaded = await loadState();
+    expect(loaded.settings.ui.theme).toBe("apple");
+    expect(loaded.settings.ui.appearance).toBe("dark");
   });
 
   it("首次运行种入 7 个默认类别（6 启用 + 1 禁用）", async () => {
@@ -80,6 +99,34 @@ describe("Key 不落明文（spec: API Key 安全存储）", () => {
     expect(await keyring.get("m1")).toBe("sk-roundtrip");
     await keyring.delete("m1");
     expect(await keyring.get("m1")).toBeNull();
+  });
+});
+
+describe("onboarding 粘性标记（spec: onboarding 首次运行判定）", () => {
+  it("全新数据默认未完成", async () => {
+    const loaded = await loadState();
+    expect(loaded.settings.ui.onboarded).toBe(false);
+  });
+
+  it("旧数据缺 onboarded 但已有模型配置 → 迁移为已完成（老用户升级不触发引导）", async () => {
+    const settings = defaultSettings();
+    settings.models = [{ id: "m1", provider: "openai", model: "gpt-4o", keyringRef: "m1" }] as ModelConfig[];
+    const { onboarded: _drop, ...legacyUi } = defaultSettings().ui; // 模拟旧版本写入的 ui（无该字段）
+    void _drop;
+    await saveSettings({ ...settings, ui: legacyUi as UiPrefs });
+    const loaded = await loadState();
+    expect(loaded.settings.ui.onboarded).toBe(true);
+  });
+
+  it("已有标记以存值为准（不被迁移覆盖）", async () => {
+    const settings = defaultSettings();
+    settings.models = [{ id: "m1", provider: "openai", model: "gpt-4o", keyringRef: "m1" }] as ModelConfig[];
+    settings.ui.onboarded = false; // 显式 false + 有模型：以存值为准
+    await saveSettings(settings);
+    expect((await loadState()).settings.ui.onboarded).toBe(false);
+    settings.ui.onboarded = true;
+    await saveSettings(settings);
+    expect((await loadState()).settings.ui.onboarded).toBe(true);
   });
 });
 

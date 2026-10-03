@@ -61,7 +61,7 @@ export function defaultSettings(): AppSettings {
     models: [],
     categories: structuredClone(DEFAULT_CATEGORIES),
     draftText: "",
-    ui: { splitPercent: 60 },
+    ui: { splitPercent: 60, theme: "swiss", appearance: "system", onboarded: false },
   };
 }
 
@@ -77,7 +77,14 @@ export async function loadState(): Promise<PersistedState> {
       settingsRaw?.categories && settingsRaw.categories.length > 0
         ? settingsRaw.categories
         : defaultSettings().categories,
-    ui: { ...defaultSettings().ui, ...(settingsRaw?.ui ?? {}) },
+    ui: (() => {
+      const ui = { ...defaultSettings().ui, ...(settingsRaw?.ui ?? {}) };
+      // 升级迁移（spec: onboarding 老数据兼容）：缺标记但已有模型配置 → 视为已初始化，老用户不被打扰
+      if (settingsRaw?.ui?.onboarded === undefined && (settingsRaw?.models?.length ?? 0) > 0) {
+        ui.onboarded = true;
+      }
+      return ui;
+    })(),
   };
   return { settings, lastReview };
 }

@@ -1,9 +1,13 @@
 // 任务 3.1–3.4 组件测试：两步流程 / 失焦自动检索 / 自定义连接（spec: settings 模型配置管理）。
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import SettingsPage from "./SettingsPage.vue";
 import { useSettingsStore } from "../stores/settings";
+import { useOnboardingStore } from "../stores/onboarding";
+import { useUiStore } from "../stores/ui";
+import { useThemeStore } from "../stores/theme";
+import { loadState } from "../lib/persistence";
 import { keyring } from "../lib/keyring";
 
 const REAL_FETCH = globalThis.fetch;
@@ -32,6 +36,18 @@ async function mountPage() {
   return w;
 }
 
+/** 等待模型下拉目录满足条件（pi-ai 动态 import 工厂链耗时随并发负载波动，轮询代替固定 sleep 防偶发超时）。 */
+async function waitForOptions(w: Awaited<ReturnType<typeof mountPage>>, predicate: (texts: string[]) => boolean) {
+  await vi.waitFor(
+    async () => {
+      await flushPromises();
+      const texts = w.findAll("select option").map((o) => o.text());
+      if (!predicate(texts)) throw new Error("select options not ready");
+    },
+    { timeout: 3000, interval: 25 },
+  );
+}
+
 describe("3.1 第一步：选服务", () => {
   it("pick 步渲染 29 个预设卡片（3 分组）+ 自定义连接 + 本地模型", async () => {
     const w = await mountPage();
@@ -52,9 +68,7 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
     await w.find("section .set-sec > button").trigger("click");
     const deepseek = w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!;
     await deepseek.trigger("click");
-    await flushPromises();
-    await new Promise((r) => setTimeout(r, 50)); // 动态 import 工厂链需要宏任务翻转
-    await flushPromises();
+    await waitForOptions(w, (t) => t.length >= 2 && t.some((x) => x.includes("deepseek-flash")));
     // API Key 为唯一文本输入；模型下拉来自静态目录
     const select = w.find("select");
     const options = select.findAll("option");
@@ -71,15 +85,12 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
     const w = await mountPage();
     await w.find("section .set-sec > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
-    await flushPromises();
-    await new Promise((r) => setTimeout(r, 50)); // 动态 import 工厂链需要宏任务翻转
-    await flushPromises();
+    await waitForOptions(w, (t) => t.length >= 1);
     const before = w.find("select").findAll("option").length;
     const keyInput = w.find('input[type="password"]');
     await keyInput.setValue("sk-test-key-1");
     await keyInput.trigger("blur");
-    await new Promise((r) => setTimeout(r, 450)); // 300ms 防抖 + fetch
-    await flushPromises();
+    await waitForOptions(w, (t) => t.some((x) => x.includes("deepseek-online-x"))); // 300ms 防抖 + fetch
     const options = w.find("select").findAll("option").map((o) => o.text());
     expect(options.length).toBe(before + 1); // deepseek-online-x 新增；deepseek-flash 去重不重复
     expect(options.join()).toContain("deepseek-online-x");
@@ -95,9 +106,7 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
     const w = await mountPage();
     await w.find("section .set-sec > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
-    await flushPromises();
-    await new Promise((r) => setTimeout(r, 50)); // 动态 import 工厂链需要宏任务翻转
-    await flushPromises();
+    await waitForOptions(w, (t) => t.length >= 1);
     const keyInput = w.find('input[type="password"]');
     await keyInput.setValue("  ");
     await keyInput.trigger("blur");
@@ -111,14 +120,19 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
     const w = await mountPage();
     await w.find("section .set-sec > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
-    await flushPromises();
-    await new Promise((r) => setTimeout(r, 50)); // 动态 import 工厂链需要宏任务翻转
-    await flushPromises();
+    await waitForOptions(w, (t) => t.length >= 2);
     const keyInput = w.find('input[type="password"]');
     await keyInput.setValue("sk-bad");
     await keyInput.trigger("blur");
-    await new Promise((r) => setTimeout(r, 450));
-    await flushPromises();
+    await vi.waitFor(
+      async () => {
+        await flushPromises();
+        if (!w.findAll(".microlabel").map((l) => l.text()).join().includes("API Key 无效")) {
+          throw new Error("401 weak hint not shown yet");
+        }
+      },
+      { timeout: 3000, interval: 25 },
+    );
     const microlabels = w.findAll(".microlabel").map((l) => l.text()).join();
     expect(microlabels).toContain("API Key 无效");
     expect(w.find("select").findAll("option").length).toBeGreaterThanOrEqual(2); // 目录仍在
@@ -130,9 +144,7 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
     const settings = useSettingsStore(); // 必须在 mountPage 之后取（同一 active pinia）
     await w.find("section .set-sec > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
-    await flushPromises();
-    await new Promise((r) => setTimeout(r, 50)); // 动态 import 工厂链需要宏任务翻转
-    await flushPromises();
+    await waitForOptions(w, (t) => t.length >= 1);
     const keyInput = w.find('input[type="password"]');
     await keyInput.setValue("sk-persist-me");
     // 不依赖检索直接保存（目录默认已预选）
@@ -215,9 +227,7 @@ describe("2.4 编辑表单按配置来源分流（spec: settings 编辑预设配
     await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "k" });
     await flushPromises();
     await w.findAll("button").find((b) => b.text() === "编辑")!.trigger("click");
-    await flushPromises();
-    await new Promise((r) => setTimeout(r, 50)); // 目录懒加载
-    await flushPromises();
+    await waitForOptions(w, (t) => t.length >= 2 && t.some((x) => x.includes("deepseek-flash"))); // 目录懒加载
     const html = w.html();
     expect(html).toContain("端点已内置"); // 预设形态标识
     expect(html).not.toContain("Base URL"); // 不出现自定义字段
@@ -252,9 +262,7 @@ describe("2.4 编辑表单按配置来源分流（spec: settings 编辑预设配
     await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "k" });
     await flushPromises();
     await w.findAll("button").find((b) => b.text() === "编辑")!.trigger("click");
-    await flushPromises();
-    await new Promise((r) => setTimeout(r, 50));
-    await flushPromises();
+    await waitForOptions(w, (t) => t.some((x) => x.includes("deepseek-v4-pro")));
     const select = w.find("select");
     await select.setValue("deepseek-v4-pro");
     await w.findAll("button").find((b) => b.text() === "保存")!.trigger("click");
@@ -299,6 +307,57 @@ describe("3.4 自定义连接", () => {
     expect((w.find('input[placeholder*="api/paas"]').element as HTMLInputElement).value).toBe(
       "http://localhost:11434/v1",
     );
+    w.unmount();
+  });
+});
+
+describe("3.3 Appearance 外观（spec: theme-system 主题与明暗双轴独立选择）", () => {
+  it("渲染主题与明暗两组选项，默认 swiss + system", async () => {
+    const w = await mountPage();
+    const themes = w.findAll("[data-theme-option]");
+    const appearances = w.findAll("[data-appearance-option]");
+    expect(themes.map((t) => t.text())).toEqual(["瑞士风格", "Apple 风格"]);
+    expect(appearances.map((a) => a.text())).toEqual(["亮色", "暗色", "跟随系统"]);
+    expect(w.find("[data-theme-option='swiss']").classes()).toContain("on");
+    expect(w.find("[data-appearance-option='system']").classes()).toContain("on");
+    w.unmount();
+  });
+
+  it("点击主题/明暗即切换 data-theme 并持久化偏好", async () => {
+    const w = await mountPage();
+    const settings = useSettingsStore();
+    // 主题应用由 main.ts start()；测试中显式启动后 DOM 属性才随偏好联动
+    useThemeStore().start();
+
+    await w.find("[data-theme-option='apple']").trigger("click");
+    await flushPromises();
+    expect(document.documentElement.dataset.theme).toBe("apple-light");
+    expect(settings.ui.theme).toBe("apple");
+
+    await w.find("[data-appearance-option='dark']").trigger("click");
+    await flushPromises();
+    expect(document.documentElement.dataset.theme).toBe("apple-dark");
+    expect(settings.ui.appearance).toBe("dark");
+
+    const loaded = await loadState();
+    expect(loaded.settings.ui.theme).toBe("apple");
+    expect(loaded.settings.ui.appearance).toBe("dark");
+    w.unmount();
+  });
+});
+
+describe("onboarding 重看入口（spec: onboarding 手动重看入口）", () => {
+  it("「重新运行引导」唤醒：active 置位；跳过后回设置页且标记保持已完成", async () => {
+    const w = await mountPage();
+    const onb = useOnboardingStore();
+    const ui = useUiStore();
+    ui.go("settings");
+    await w.find('[data-test="rerun-onboarding"]').trigger("click");
+    expect(onb.active).toBe(true);
+
+    await onb.skip();
+    expect(ui.page).toBe("settings"); // 回到进入前页面
+    expect((await loadState()).settings.ui.onboarded).toBe(true); // 标记保持已完成
     w.unmount();
   });
 });

@@ -1,10 +1,13 @@
 // 应用入口（design 决策 1）：fetch 通道替换 + Pinia + 领域日志挂接。
+// 初始化前移（spec: theme-system 启动无样式闪烁）：mount 前恢复偏好并应用皮肤，首帧即目标主题。
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import { installTauriFetch, isTauri } from "./lib/tauri";
+import { useSettingsStore } from "./stores/settings";
+import { useThemeStore } from "./stores/theme";
 
 async function bootstrap() {
   // Spike（tasks 1.3）：Tauri WebView 内把全局 fetch 换成 tauri http fetch。
@@ -18,7 +21,13 @@ async function bootstrap() {
   }
 
   const app = createApp(App);
-  app.use(createPinia());
+  const pinia = createPinia();
+  app.use(pinia);
+
+  // 主题首帧：读取持久化偏好 → 应用 data-theme → 再 mount（Tauri 本地 store 毫秒级，无可感知延迟）。
+  await useSettingsStore(pinia).init();
+  useThemeStore(pinia).start();
+
   app.mount("#app");
 }
 

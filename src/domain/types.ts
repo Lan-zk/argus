@@ -180,10 +180,22 @@ export interface PersistedReview {
   report: ReviewReport | null;
 }
 
+/** 界面主题（风格轴，spec: theme-system）：swiss = 瑞士国际主义（默认），apple = Apple 质感。 */
+export type ThemeStyle = "swiss" | "apple";
+
+/** 明暗外观（spec: theme-system）：system = 跟随操作系统。 */
+export type Appearance = "light" | "dark" | "system";
+
 /** UI 偏好（app-persistence：界面偏好记忆）。 */
 export interface UiPrefs {
   /** 左栏宽度百分比（工作台分栏），默认 60。 */
   splitPercent: number;
+  /** 界面主题（theme-system），默认 "swiss"。 */
+  theme: ThemeStyle;
+  /** 明暗外观（theme-system），默认 "system"。 */
+  appearance: Appearance;
+  /** 首次引导是否已完成（spec: onboarding 粘性标记）：完成或跳过即置位，默认 false。 */
+  onboarded: boolean;
 }
 
 export interface AppSettings {

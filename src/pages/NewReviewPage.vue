@@ -5,11 +5,13 @@ import { computed, ref, watch } from "vue";
 import { useSettingsStore } from "../stores/settings";
 import { useSessionStore } from "../stores/session";
 import { useUiStore } from "../stores/ui";
+import { useOnboardingStore } from "../stores/onboarding";
 import { MAX_DOC_CHARS } from "../lib/constants";
 
 const settings = useSettingsStore();
 const session = useSessionStore();
 const ui = useUiStore();
+const onboarding = useOnboardingStore();
 
 const text = computed({
   get: () => settings.draftText,
@@ -100,6 +102,12 @@ async function startReview() {
   <section class="page on">
     <div class="new-wrap">
       <div class="new-left">
+        <!-- 跳过引导后的接续提示（spec: onboarding 无模型状态的接续提示） -->
+        <div v-if="settings.loaded && !settings.defaultModel" class="ob-continue" data-test="no-model-hint">
+          <span>尚未配置模型：开始审阅前需要至少一条可用的模型配置。</span>
+          <button class="mini" @click="onboarding.start()">重新运行引导</button>
+          <button class="mini" @click="ui.go('settings')">前往设置</button>
+        </div>
         <div class="sec-head">
           <span class="n">1.1</span><h2>原文输入</h2>
           <span class="hint">支持 Markdown · 粘贴后结构将被保留</span>
@@ -166,3 +174,7 @@ async function startReview() {
     </div>
   </section>
 </template>
+
+<style scoped>
+.ob-continue{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:var(--card);border:var(--hair);color:var(--ink70);font-size:12px}
+</style>

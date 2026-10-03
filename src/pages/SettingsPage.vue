@@ -12,8 +12,38 @@ import { DEFAULT_CATEGORIES } from "../domain/default-categories";
 import { catalogModels, customFetchInput, fetchRemoteModels, mergeModels, presetFetchInput } from "../ai/model-discovery";
 import { testConnection } from "../ai/test-connection";
 import { keyring } from "../lib/keyring";
+import { resolveTheme } from "../lib/theme";
+import { useThemeStore } from "../stores/theme";
+import { useOnboardingStore } from "../stores/onboarding";
+import type { Appearance, ThemeStyle } from "../domain/types";
+import CategoryColorPicker from "../components/CategoryColorPicker.vue";
 
 const settings = useSettingsStore();
+const onboarding = useOnboardingStore();
+
+/** 颜色选择弹层当前打开的类别 id（spec: settings 类别颜色配置）。 */
+const colorPickerFor = ref<string | null>(null);
+
+// ============ Appearance 外观（spec: theme-system） ============
+const themeStore = useThemeStore();
+const themeOptions: { value: ThemeStyle; label: string }[] = [
+  { value: "swiss", label: "瑞士风格" },
+  { value: "apple", label: "Apple 风格" },
+];
+const appearanceOptions: { value: Appearance; label: string }[] = [
+  { value: "light", label: "亮色" },
+  { value: "dark", label: "暗色" },
+  { value: "system", label: "跟随系统" },
+];
+const SKIN_ZH: Record<string, string> = {
+  "swiss-light": "瑞士风格 · 亮色",
+  "swiss-dark": "瑞士风格 · 暗色",
+  "apple-light": "Apple 风格 · 亮色",
+  "apple-dark": "Apple 风格 · 暗色",
+};
+const currentSkinLabel = computed(
+  () => SKIN_ZH[resolveTheme(settings.ui.theme, settings.ui.appearance, themeStore.systemDark)],
+);
 
 /** 恢复内置类别：保留用户自定义，补回缺失的内置 7 类（spec: settings 内置默认类别）。 */
 async function restoreBuiltinCategories() {
@@ -306,7 +336,7 @@ void presetById;
             <b>{{ m.displayName || m.model }}</b>
             <span v-if="m.displayName" class="session-chip">{{ m.model }}</span>
             <span v-if="m.baseUrl" class="session-chip">{{ m.baseUrl }}</span>
-            <span v-if="m.isDefault" class="microlabel" style="color: var(--red)">默认</span>
+            <span v-if="m.isDefault" class="microlabel" style="color: var(--accent)">默认</span>
             <span class="spacer" style="flex: 1"></span>
             <button v-if="!m.isDefault" class="mini" @click="settings.setDefaultModel(m.id)">设为默认</button>
             <button class="mini" @click="editModel(m.id)">编辑</button>
@@ -564,6 +594,9 @@ void presetById;
           {{ keyringStatus || "钥匙串诊断中…" }} ·
           Key 通过系统安全存储保存；日志与错误信息不含完整 Key。预设服务只需填 API Key，模型列表自动检索；同一服务的第二个模型自动复用已存 Key。
         </div>
+        <button class="mini" style="margin-top: 10px" data-test="rerun-onboarding" @click="onboarding.start()">
+          ↻ 重新运行引导
+        </button>
       </div>
 
       <!-- 3.2 Categories -->
@@ -575,7 +608,13 @@ void presetById;
 
         <div v-for="(c, i) in [...settings.categories].sort((a, b) => a.order - b.order)" :key="c.id" class="cat-set-row">
           <div class="csr-top">
-            <span class="csq" :style="{ background: c.color ?? 'var(--gray)' }"></span>
+            <button
+              type="button"
+              class="csq csq-btn"
+              :aria-label="`更改 ${c.name} 颜色`"
+              :style="{ background: c.color ?? 'var(--gray)' }"
+              @click="colorPickerFor = colorPickerFor === c.id ? null : c.id"
+            ></button>
             <b>{{ c.name }}</b>
             <span class="en">{{ c.en }}</span>
             <label class="ctl"><input v-model="c.enabled" type="checkbox" @change="settings.updateCategory(c.id, { enabled: c.enabled })" />启用</label>
@@ -589,6 +628,12 @@ void presetById;
               {{ openCat === c.id ? "收起" : "编辑 Prompt" }}
             </button>
           </div>
+          <CategoryColorPicker
+            v-if="colorPickerFor === c.id"
+            :model-value="c.color ?? 'var(--gray)'"
+            @select="(color) => settings.updateCategory(c.id, { color })"
+            @close="colorPickerFor = null"
+          />
           <div v-if="openCat === c.id" class="csr-body">
             <div class="mr-grid" style="padding: 0 0 12px">
               <div class="fg g2">
@@ -624,6 +669,39 @@ void presetById;
         </div>
         <button class="mini" style="margin-top: 10px" @click="restoreBuiltinCategories">恢复内置类别</button>
       </div>
+
+      <!-- 3.3 Appearance 外观（spec: theme-system） -->
+      <div class="set-sec">
+        <div class="sec-head">
+          <span class="n">3.3</span><h2>Appearance 外观</h2>
+          <span class="hint">主题与明暗独立选择 · 立即生效</span>
+        </div>
+        <div class="frow">
+          <span class="microlabel">主题</span>
+          <span
+            v-for="t in themeOptions"
+            :key="t.value"
+            class="fchip"
+            :class="{ on: settings.ui.theme === t.value }"
+            :data-theme-option="t.value"
+            @click="settings.setTheme(t.value)"
+            >{{ t.label }}</span
+          >
+        </div>
+        <div class="frow" style="margin-top: 10px">
+          <span class="microlabel">明暗</span>
+          <span
+            v-for="a in appearanceOptions"
+            :key="a.value"
+            class="fchip"
+            :class="{ on: settings.ui.appearance === a.value }"
+            :data-appearance-option="a.value"
+            @click="settings.setAppearance(a.value)"
+            >{{ a.label }}</span
+          >
+        </div>
+        <div class="ctx-note">「跟随系统」随操作系统明暗自动切换 · 当前生效：{{ currentSkinLabel }}</div>
+      </div>
     </div>
   </section>
 </template>
@@ -632,8 +710,9 @@ void presetById;
 .pick-head{display:flex;align-items:center;padding:12px 16px}
 .preset-group{padding:10px 16px 4px}
 .preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.preset-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;text-align:left;background:var(--card)}
-.preset-card:hover{background:var(--ink)}
+.preset-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;text-align:left;background:var(--card);
+  transition:background-color .15s var(--ease-out-quint),color .15s var(--ease-out-quint)}
+.preset-card:hover{background:var(--ink);color:var(--paper)}
 .preset-card:hover .preset-models,.preset-card:hover .preset-region{color:var(--paper2)}
 .preset-card b{font-size:13px}
 .preset-region{font-size:9.5px;color:var(--ink50);letter-spacing:.06em}

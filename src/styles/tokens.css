@@ -1,11 +1,89 @@
-/* ARGUS design tokens — 迁移自 design/02 原型（瑞士国际主义风格） */
+/* ARGUS design tokens（spec: theme-system）
+   令牌分层：颜色令牌按「主题 × 明暗」四组合各自定值；形状令牌仅随主题轴（swiss/apple）变化。
+   :root = swiss-light（默认），取值与主题系统引入前完全一致。
+   语义拆分：--accent 品牌强调（随主题走）；--danger 错误/高危/失败（恒红系）。
+   Apple 取值依据根目录 DESIGN.md（Apple-design-analysis）：--accent=Action Blue（暗面 Sky Blue）、
+   --accent-focus=Focus Blue（仅焦点环）、--cta=填充式主按钮蓝（明暗同用 Action Blue）、
+   chrome 零阴影（浮层走毛玻璃）、卡片 18px / 工具件 8px / CTA 全胶囊。 */
+
 :root{
+  /* 颜色 — swiss-light */
   --paper:#f5f3ee; --paper2:#ebe8e0; --card:#fdfcf9; --ink:#17150f; --ink70:rgba(23,21,15,.7);
   --ink50:rgba(23,21,15,.5); --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14);
-  --red:#e2231a; --ochre:#c08a00; --gray:#5b6470;
+  --accent:#e2231a; --accent-focus:#e2231a; --cta:#e2231a; --danger:#e2231a;
+  --ochre:#b38100; --gray:#5b6470;
+  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff;
+  --pearl:#fdfcf9; --ring-soft:#ebe8e0; --pearl-ink:#17150f;
+  --shadow-pop:6px 6px 0 rgba(23,21,15,.15);
   --hair:1px solid var(--ink15);
+  --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#b38100; --c-rhetoric:#7444c1;
+  --c-structure:#0d7a68; --c-clarity:#c2447e; --c-speech:#b9622a;
+  /* 自定义类别调色板（category-colors）：色相取内置色环空档 */
+  --p1:#1e8e4a; --p2:#69890b; --p3:#0c8da6; --p4:#0e8fd0; --p5:#4f46c9;
+  --p6:#5b21b6; --p7:#a6128f; --p8:#55677d; --p9:#8e1440; --p10:#a0522d;
+
+  /* 形状 — swiss（直角硬边） */
+  --radius:0; --radius-sm:0; --radius-round:0; --radius-cta:0;
+
   --sans:"Helvetica Neue",Helvetica,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
   --mono:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
-  --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#c08a00; --c-rhetoric:#7444c1;
-  --c-structure:#0d7a68; --c-clarity:#c2447e; --c-speech:#b9622a;
+
+  /* 动效曲线（跨主题共享）：自然减速，禁 bounce/elastic */
+  --ease-out-quint:cubic-bezier(.22,1,.36,1);
+  --ease-out-expo:cubic-bezier(.16,1,.3,1);
+}
+
+/* ---------- swiss-dark：纸/墨反转（深灰阶非纯黑），类别色整体提亮 ---------- */
+[data-theme="swiss-dark"]{
+  --paper:#16161a; --paper2:#222228; --card:#1d1d23; --ink:#ece9e2; --ink70:rgba(236,233,226,.7);
+  --ink50:rgba(236,233,226,.52); --ink35:rgba(236,233,226,.36); --ink15:rgba(236,233,226,.16);
+  --accent:#ff5548; --accent-focus:#ff5548; --cta:#ff5548; --danger:#ff5548;
+  --ochre:#d9a441; --gray:#98a2ae;
+  --on-accent:#fff; --on-danger:#1c0604; --on-cta:#fff;
+  --pearl:#1d1d23; --ring-soft:#222228; --pearl-ink:#ece9e2;
+  --shadow-pop:6px 6px 0 rgba(0,0,0,.45);
+  --c-logic:#ff5548; --c-thesis:#6e94ff; --c-argument:#d9a441; --c-rhetoric:#b18af0;
+  --c-structure:#4fc1ab; --c-clarity:#f07cae; --c-speech:#e89a62;
+  --p1:#55d47e; --p2:#b8e05c; --p3:#4cc9dd; --p4:#54b3f0; --p5:#6d7df7;
+  --p6:#a45cf1; --p7:#e56bd4; --p8:#9db2cd; --p9:#e04a74; --p10:#c1734a;
+}
+
+/* ---------- apple-light（DESIGN.md）：parchment 画布 + Action Blue 单强调 + 珍珠胶囊 ---------- */
+[data-theme="apple-light"]{
+  --paper:#f5f5f7; --paper2:#f0f0f0; --card:#ffffff; --ink:#1d1d1f; --ink70:rgba(29,29,31,.78);
+  --ink50:rgba(29,29,31,.56); --ink35:rgba(29,29,31,.36); --ink15:#e0e0e0;
+  --accent:#0066cc; --accent-focus:#0071e3; --cta:#0066cc; --danger:#d70015;
+  --ochre:#ad5700; --gray:#6e6e73;
+  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff;
+  --pearl:#fafafc; --ring-soft:#f0f0f0; --pearl-ink:#333;
+  --shadow-pop:0 0 0 0 transparent; /* chrome 零阴影；浮层 .pop 走毛玻璃 */
+  --hair:1px solid var(--ink15);
+  --c-logic:#d70015; --c-thesis:#0066cc; --c-argument:#9c7300; --c-rhetoric:#af52de;
+  --c-structure:#0f8f7c; --c-clarity:#e0357c; --c-speech:#c96a10;
+  --p1:#1e8e4a; --p2:#69890b; --p3:#0c8da6; --p4:#0e8fd0; --p5:#4f46c9;
+  --p6:#5b21b6; --p7:#a6128f; --p8:#55677d; --p9:#8e1440; --p10:#a0522d;
+
+  /* 形状 — apple（DESIGN.md 圆角语法：卡 18 / 工具 8 / 胶囊全圆） */
+  --radius:18px; --radius-sm:8px; --radius-round:9999px; --radius-cta:9999px;
+  --sans:system-ui,-apple-system,"SF Pro Text","Helvetica Neue","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+
+/* ---------- apple-dark（DESIGN.md）：近黑 tile 微阶分层 + Sky Blue 暗面强调 ---------- */
+[data-theme="apple-dark"]{
+  --paper:#272729; --paper2:#252527; --card:#2a2a2c; --ink:#ffffff; --ink70:rgba(255,255,255,.78);
+  --ink50:rgba(255,255,255,.58); --ink35:rgba(255,255,255,.38); --ink15:rgba(255,255,255,.16);
+  --accent:#2997ff; --accent-focus:#2997ff; --cta:#0066cc; --danger:#ff453a;
+  --ochre:#ffa41b; --gray:#98a2ae;
+  --on-accent:#fff; --on-danger:#24120a; --on-cta:#fff;
+  --pearl:#2a2a2c; --ring-soft:#3a3a3c; --pearl-ink:#f5f5f7;
+  --shadow-pop:0 0 0 0 transparent; /* chrome 零阴影；浮层 .pop 走毛玻璃 */
+  --hair:1px solid var(--ink15);
+  --c-logic:#ff453a; --c-thesis:#2997ff; --c-argument:#ffd60a; --c-rhetoric:#bf5af2;
+  --c-structure:#40c8e0; --c-clarity:#ff375f; --c-speech:#ff9f0a;
+  --p1:#4cd964; --p2:#c2e85a; --p3:#43e8c6; --p4:#7ac8ff; --p5:#8f9df5;
+  --p6:#8a63f2; --p7:#ef6cd0; --p8:#9db2cd; --p9:#e04a74; --p10:#c96f3f;
+
+  /* 形状 — apple */
+  --radius:18px; --radius-sm:8px; --radius-round:9999px; --radius-cta:9999px;
+  --sans:system-ui,-apple-system,"SF Pro Text","Helvetica Neue","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
 }

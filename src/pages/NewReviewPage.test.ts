@@ -7,6 +7,7 @@ import { useSettingsStore } from "../stores/settings";
 import { useSessionStore } from "../stores/session";
 import { useUiStore } from "../stores/ui";
 import { keyring } from "../lib/keyring";
+import { defaultSettings, saveSettings } from "../lib/persistence";
 
 async function mountReady() {
   const pinia = createPinia();
@@ -89,5 +90,26 @@ describe("启动失败的可见性", () => {
     }
     expect(session.session?.status).toBe("failed");
     void m;
+  });
+});
+
+describe("无模型接续提示（spec: onboarding 无模型状态的接续提示）", () => {
+  it("跳过引导且无模型时显示两去向提示；配置模型后消失", async () => {
+    await saveSettings(defaultSettings()); // 复位内存兜底存储：无模型、onboarded=false
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const w = mount(NewReviewPage, { global: { plugins: [pinia] } });
+    const settings = useSettingsStore();
+    await settings.init();
+    await flushPromises();
+    const hint = w.find('[data-test="no-model-hint"]');
+    expect(hint.exists()).toBe(true);
+    expect(hint.text()).toContain("重新运行引导");
+    expect(hint.text()).toContain("前往设置");
+
+    await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "k" });
+    await flushPromises();
+    expect(w.find('[data-test="no-model-hint"]').exists()).toBe(false);
+    w.unmount();
   });
 });

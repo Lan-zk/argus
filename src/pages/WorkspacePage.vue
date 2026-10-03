@@ -301,9 +301,10 @@ void SAMPLE_DOC;
           </div>
           <div ref="cardsEl" class="cards">
             <FindingCard
-              v-for="f in filteredFindings"
+              v-for="(f, idx) in filteredFindings"
               :key="f.id"
               :data-fid="f.id"
+              :style="{ '--i': idx }"
               :finding="f"
               :category-name="catName(f.categoryId)"
               :category-color="colorMap[f.categoryId]"

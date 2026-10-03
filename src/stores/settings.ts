@@ -2,11 +2,15 @@
 // 持久化透明自动：任何变更即落盘（模型配置脱敏，Key 进钥匙串）。
 
 import { defineStore } from "pinia";
-import type { ModelConfig, ProviderKind, ReviewCategory } from "../domain/types";
+import type { Appearance, ModelConfig, ProviderKind, ReviewCategory, ThemeStyle } from "../domain/types";
 import { DEFAULT_CATEGORIES } from "../domain/default-categories";
+import { rotationColor } from "../domain/palette";
 import { keyring } from "../lib/keyring";
 import { presetById } from "../domain/presets";
 import { defaultSettings, loadState, saveSettings } from "../lib/persistence";
+
+/** 内置类别 id 集合：兜底色轮转按「自定义类别数」计数（category-colors design D5）。 */
+const BUILTIN_IDS = new Set(DEFAULT_CATEGORIES.map((c) => c.id));
 
 function uid(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -30,7 +34,7 @@ export const useSettingsStore = defineStore("settings", {
     models: [] as ModelConfig[],
     categories: [] as ReviewCategory[],
     draftText: "",
-    ui: { splitPercent: 60 },
+    ui: { splitPercent: 60, theme: "swiss" as ThemeStyle, appearance: "system" as Appearance, onboarded: false },
     /** 恢复提示条（最近一次 Review）。 */
     restored: false,
     lastReview: null as Awaited<ReturnType<typeof loadState>>["lastReview"],
@@ -46,6 +50,7 @@ export const useSettingsStore = defineStore("settings", {
 
   actions: {
     async init() {
+      if (this.loaded) return; // 幂等：main.ts 已在 mount 前初始化（theme-system 首帧），组件再调不重复读盘
       const state = await loadState();
       this.models = state.settings.models;
       this.categories = state.settings.categories;
@@ -62,6 +67,23 @@ export const useSettingsStore = defineStore("settings", {
         draftText: this.draftText,
         ui: this.ui,
       });
+    },
+
+    // ---- 主题偏好（spec: theme-system 偏好持久化与默认值）----
+    async setTheme(theme: ThemeStyle) {
+      this.ui.theme = theme;
+      await this.persist();
+    },
+
+    async setAppearance(appearance: Appearance) {
+      this.ui.appearance = appearance;
+      await this.persist();
+    },
+
+    // ---- Onboarding 粘性标记（spec: onboarding 首次运行判定）----
+    async setOnboarded(v: boolean) {
+      this.ui.onboarded = v;
+      await this.persist();
     },
 
     // ---- Models CRUD（spec: settings 模型配置管理）----
@@ -125,7 +147,7 @@ export const useSettingsStore = defineStore("settings", {
         id: uid("cat"),
         name: input.name ?? "新类别",
         description: input.description ?? "",
-        color: input.color ?? "var(--gray)",
+        color: input.color ?? rotationColor(this.categories.filter((c) => !BUILTIN_IDS.has(c.id)).length),
         prompt: input.prompt ?? "你是文稿审阅专家。请描述本类别的检查项。",
         enabled: input.enabled ?? true,
         defaultSelected: input.defaultSelected ?? false,

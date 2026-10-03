@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon(.dmg)
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin --bundles app,dmg
+            rust-targets: aarch64-apple-darwin
+          # macOS Intel(.dmg)
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin --bundles app,dmg
+            rust-targets: x86_64-apple-darwin
+          # Windows x64(NSIS 安装包 .exe + MSI)
+          - platform: windows-latest
+            args: --bundles nsis,msi
+            rust-targets: ''
+          # Linux(.deb + .AppImage)
+          - platform: ubuntu-22.04
+            args: --bundles deb,appimage
+            rust-targets: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libxdo-dev
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and upload to Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Argus v__VERSION__'
+          releaseBody: '在下方 Assets 中下载对应系统的安装包。'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
