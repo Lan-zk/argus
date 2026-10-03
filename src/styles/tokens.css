@@ -1,0 +1,11 @@
+/* ARGUS design tokens — 迁移自 design/02 原型（瑞士国际主义风格） */
+:root{
+  --paper:#f5f3ee; --paper2:#ebe8e0; --card:#fdfcf9; --ink:#17150f; --ink70:rgba(23,21,15,.7);
+  --ink50:rgba(23,21,15,.5); --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14);
+  --red:#e2231a; --ochre:#c08a00; --gray:#5b6470;
+  --hair:1px solid var(--ink15);
+  --sans:"Helvetica Neue",Helvetica,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+  --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#c08a00; --c-rhetoric:#7444c1;
+  --c-structure:#0d7a68; --c-clarity:#c2447e; --c-speech:#b9622a;
+}

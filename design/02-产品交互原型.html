@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARGUS — 产品交互原型 · 02</title>
+<style>
+  :root{
+    --paper:#f5f3ee; --paper2:#ebe8e0; --card:#fdfcf9; --ink:#17150f; --ink70:rgba(23,21,15,.7);
+    --ink50:rgba(23,21,15,.5); --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14);
+    --red:#e2231a; --ochre:#c08a00; --gray:#5b6470;
+    --hair:1px solid var(--ink15);
+    --sans:"Helvetica Neue",Helvetica,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    --mono:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+    --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#c08a00; --c-rhetoric:#7444c1;
+    --c-structure:#0d7a68; --c-clarity:#c2447e; --c-speech:#b9622a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{background:var(--paper)}
+  body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;
+    height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  ::selection{background:var(--red);color:#fff}
+  .microlabel{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink50);font-weight:600}
+  button{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.05em;background:var(--card);
+    border:1.5px solid var(--ink);color:var(--ink);padding:7px 16px;cursor:pointer;transition:background .12s,color .12s}
+  button:hover{background:var(--ink);color:var(--paper)}
+  button.primary{background:var(--ink);color:var(--paper)}
+  button.primary:hover{background:var(--red);border-color:var(--red)}
+  button.danger{border-color:var(--red);color:var(--red)}
+  button.danger:hover{background:var(--red);color:#fff}
+  button.mini{padding:3px 9px;font-size:11px;border-width:1px}
+  button:disabled{opacity:.3;cursor:not-allowed}
+  button:disabled:hover{background:var(--card);color:var(--ink)}
+  input[type=text],input[type=password],input[type=number],textarea,select{
+    font-family:var(--sans);font-size:13px;border:1.5px solid var(--ink35);background:var(--card);
+    color:var(--ink);padding:7px 10px;width:100%}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--red)}
+  input[type=checkbox]{appearance:none;width:15px;height:15px;border:1.5px solid var(--ink);background:var(--card);cursor:pointer;flex-shrink:0;position:relative}
+  input[type=checkbox]:checked{background:var(--red);border-color:var(--red)}
+  input[type=checkbox]:checked::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+  input[type=radio]{appearance:none;width:14px;height:14px;border:1.5px solid var(--ink);border-radius:0;background:var(--card);cursor:pointer}
+  input[type=radio]:checked{background:var(--ink);box-shadow:inset 0 0 0 3px var(--card)}
+  input[type=range]{appearance:none;width:100%;height:2px;background:var(--ink);cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;background:var(--red);border:none}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;background:var(--red);border:none;border-radius:0}
+
+  /* ---------- nav ---------- */
+  nav{display:flex;align-items:stretch;border-bottom:6px solid var(--ink);background:var(--paper);flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:14px;padding:18px 28px;border-right:var(--hair)}
+  .brand .sq{width:26px;height:26px;background:var(--red)}
+  .brand b{font-size:17px;letter-spacing:.02em}
+  .brand .microlabel{display:block;margin-top:1px}
+  .navtabs{display:flex;align-items:stretch;flex:1}
+  .navtab{display:flex;align-items:center;gap:9px;padding:0 26px;font-size:13px;font-weight:600;cursor:pointer;
+    border-right:var(--hair);color:var(--ink50);position:relative;user-select:none}
+  .navtab .no{font-family:var(--mono);font-size:11px;color:var(--red);font-weight:700}
+  .navtab:hover{color:var(--ink)}
+  .navtab.on{color:var(--ink);background:var(--card)}
+  .navtab.on::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px;background:var(--red)}
+  .nav-right{display:flex;align-items:center;gap:12px;padding:0 28px}
+  .session-chip{font-family:var(--mono);font-size:10.5px;color:var(--ink50)}
+
+  /* ---------- pages ---------- */
+  .page{display:none;flex:1 1 auto;min-height:0;overflow-y:auto}
+  .page.on{display:block}
+  /* 工作台：视口内三段式（状态栏/类别条/双栏），双栏各自滚动，页面本身不滚动 */
+  #page-ws.on{display:flex;flex-direction:column;overflow:hidden}
+  #page-ws.on>.ws-statusbar,#page-ws.on>.runstrip,#page-ws.on>.restore-banner,#page-ws.on>.logbar{flex:0 0 auto}
+
+  /* ---------- new review ---------- */
+  .new-wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:0;min-height:100%}
+  @media(max-width:1000px){.new-wrap{grid-template-columns:1fr}}
+  .new-left{padding:34px 40px;border-right:var(--hair)}
+  .new-right{padding:34px 28px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
+  .sec-head .n{font-family:var(--mono);color:var(--red);font-weight:700;font-size:13px}
+  .sec-head h2{font-size:19px;font-weight:700}
+  .sec-head .hint{font-size:11px;color:var(--ink50);margin-left:auto}
+  textarea.doc-input{min-height:420px;font-size:14.5px;line-height:1.9;resize:vertical}
+  .charcount{display:flex;justify-content:space-between;margin-top:8px;font-family:var(--mono);font-size:10.5px;color:var(--ink50)}
+  .charcount.over{color:var(--red)}
+  .catlist{border:var(--hair)}
+  .catrow{display:flex;gap:11px;padding:12px 14px;border-bottom:var(--hair);cursor:pointer;align-items:flex-start}
+  .catrow:last-child{border-bottom:none}
+  .catrow:hover{background:var(--card)}
+  .catrow .csq{width:9px;height:9px;margin-top:4px;flex-shrink:0}
+  .catrow b{font-size:13.5px}
+  .catrow .en{font-size:9px;letter-spacing:.14em;color:var(--ink50);text-transform:uppercase;margin-left:7px}
+  .catrow .desc{font-size:11px;color:var(--ink50);margin-top:2px;line-height:1.55}
+  .catrow .scope{font-family:var(--mono);font-size:9px;border:1px solid var(--ink35);color:var(--ink50);padding:1px 5px;margin-left:auto;flex-shrink:0}
+  .new-actions{margin-top:22px}
+  .errbox{border:2px solid var(--red);padding:14px 16px;margin-top:14px;display:none}
+  .errbox.show{display:block}
+  .errbox h5{font-size:11px;letter-spacing:.14em;color:var(--red);margin-bottom:8px}
+  .errbox li{list-style:none;font-size:12.5px;line-height:1.7;color:var(--red);padding-left:14px;position:relative}
+  .errbox li::before{content:"✗";position:absolute;left:0;font-weight:700}
+  .info-note{margin-top:18px;font-size:11px;color:var(--ink50);line-height:1.7;border-left:3px solid var(--ink);padding-left:12px}
+
+  /* ---------- workspace ---------- */
+  .ws-statusbar{display:flex;align-items:center;gap:26px;padding:12px 28px;border-bottom:var(--hair);flex-wrap:wrap;background:var(--card)}
+  .ws-stat{font-size:11px;color:var(--ink50)}
+  .ws-stat b{font-family:var(--mono);font-size:14px;color:var(--ink);margin-left:6px}
+  .badge{font-size:11px;font-weight:700;letter-spacing:.08em;padding:4px 12px;border:1.5px solid var(--ink)}
+  .badge.running{background:var(--ink);color:var(--paper)}
+  .badge.completed{border-color:var(--ink)}
+  .badge.partial_failed,.badge.failed{border-color:var(--red);color:var(--red)}
+  .badge.idle{border-color:var(--ink35);color:var(--ink50)}
+  .ws-actions{margin-left:auto;display:flex;gap:10px}
+
+  .runstrip{display:flex;flex-wrap:wrap;gap:1px;background:var(--ink15);border-bottom:var(--hair)}
+  .runcell{background:var(--paper);padding:10px 16px;min-width:172px;flex:1}
+  .runcell .rc-top{display:flex;align-items:center;gap:8px}
+  .runcell .csq{width:8px;height:8px}
+  .runcell b{font-size:12.5px}
+  .runcell .rc-status{font-family:var(--mono);font-size:10.5px;color:var(--ink50);margin-top:5px;min-height:15px}
+  .runcell .rc-status.ok{color:var(--ink)}
+  .runcell .rc-status.run{color:var(--ink);font-weight:600}
+  .runcell .rc-status.fail{color:var(--red)}
+  .runcell .rc-bar{height:3px;background:var(--paper2);margin-top:7px;position:relative}
+  .runcell .rc-bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);width:0%}
+  .runcell.failed-ri .rc-bar i{background:var(--red)}
+  .runcell .rc-retry{margin-top:7px}
+
+  .ws-main{display:flex;flex:1 1 auto;min-height:0}
+  .docpane{flex:0 0 60%;overflow-y:auto;padding:38px 34px 120px;border-right:2px solid var(--ink);position:relative;background:var(--paper)}
+  .docpane .divider-hint{position:absolute;top:14px;right:16px;font-family:var(--mono);font-size:9px;color:var(--ink35);letter-spacing:.1em}
+  .docbody{max-width:720px;margin:0 auto;font-size:16.5px;line-height:1.95}
+  .docbody.show-lines .blk{position:relative;margin-left:64px}
+  .blk{margin:0 0 26px}
+  .blk .bid{position:absolute;left:-64px;top:3px;font-family:var(--mono);font-size:9px;color:var(--red);letter-spacing:.04em;width:52px;text-align:right}
+  .blk.b-heading1{font-size:25px;font-weight:700;line-height:1.35;margin-bottom:22px}
+  .blk.b-heading2{font-size:18.5px;font-weight:700;margin-top:34px;padding-top:14px;border-top:2px solid var(--ink)}
+  .blk.b-quote{border-left:3px solid var(--ink);padding-left:16px;color:var(--ink70)}
+  .blk.b-code{font-family:var(--mono);font-size:12.5px;background:var(--paper2);padding:12px 14px;line-height:1.7;overflow-x:auto}
+  .blk.b-list_item{margin-bottom:6px;padding-left:18px;position:relative}
+  .blk.b-list_item::before{content:"—";position:absolute;left:0}
+  .docbody code{font-family:var(--mono);font-size:.85em;background:var(--paper2);padding:1px 5px}
+  .docbody a{color:var(--red)}
+  .hl{cursor:pointer;padding:1px 0}
+  .hl.u1{box-shadow:inset 0 -2px 0 var(--u1)}
+  .hl.u2{box-shadow:inset 0 -2px 0 var(--u1), inset 0 -5px 0 var(--u2)}
+  .hl.u3{box-shadow:inset 0 -2px 0 var(--u1), inset 0 -5px 0 var(--u2), inset 0 -8px 0 var(--u3)}
+  .hl:hover{background:color-mix(in srgb,var(--u1) 22%,transparent)}
+  .hl.sel{background:color-mix(in srgb,var(--u1) 26%,transparent);outline:2px solid var(--red);outline-offset:1px}
+  .divider{width:6px;cursor:col-resize;background:var(--ink);position:relative;flex:0 0 6px}
+  .divider:hover{background:var(--red)}
+
+  .sidepane{flex:1;overflow-y:auto;background:var(--card);display:flex;flex-direction:column}
+  .side-tabs{display:flex;border-bottom:var(--hair);position:sticky;top:0;background:var(--card);z-index:5}
+  .side-tab{flex:1;padding:13px 0;text-align:center;font-size:11px;font-weight:700;letter-spacing:.12em;cursor:pointer;color:var(--ink50);border-bottom:3px solid transparent}
+  .side-tab.on{color:var(--ink);border-bottom-color:var(--red)}
+  .side-tab:has(.tn):hover{color:var(--ink)}
+  .side-tab .tn{font-family:var(--mono);color:var(--red);margin-left:5px}
+  .side-tab.disabled{opacity:.35;cursor:not-allowed}
+  .filters{padding:12px 18px;border-bottom:var(--hair);display:flex;flex-direction:column;gap:9px}
+  .frow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .frow .microlabel{width:64px;flex-shrink:0}
+  .fchip{font-size:11px;padding:3px 10px;border:1px solid var(--ink35);cursor:pointer;color:var(--ink70);user-select:none}
+  .fchip:hover{border-color:var(--ink)}
+  .fchip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .fchip .cnt{font-family:var(--mono);font-size:9px;margin-left:4px;opacity:.7}
+  .cards{padding:16px 18px 80px}
+  .card{border:1px solid var(--ink15);background:var(--card);margin-bottom:14px;padding:13px 15px;cursor:pointer;transition:transform .1s}
+  .card:hover{border-color:var(--ink)}
+  .card.sel{outline:2px solid var(--red);outline-offset:2px}
+  .card.hov{border-color:var(--red)}
+  .card.unanchored{border-style:dashed;border-color:var(--ink35);background:var(--paper)}
+  .card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .cat-tag{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.06em}
+  .cat-tag .csq{width:8px;height:8px;background:var(--cc)}
+  .sev{font-size:10px;font-weight:700;padding:2px 8px;letter-spacing:.08em}
+  .sev.high{background:var(--red);color:#fff}
+  .sev.medium{border:1.5px solid var(--ochre);color:var(--ochre)}
+  .sev.low{border:1.5px solid var(--gray);color:var(--gray)}
+  .bidref{font-family:var(--mono);font-size:9.5px;color:var(--ink35);margin-left:auto}
+  .card h4{font-size:14px;font-weight:700;margin-bottom:8px}
+  .card .quote{font-size:12.5px;line-height:1.7;background:var(--paper2);border-left:3px solid var(--cc);padding:8px 11px;margin-bottom:9px;color:var(--ink70)}
+  .card .quote::before{content:"原文 ";font-size:9px;letter-spacing:.12em;color:var(--ink35);display:block;margin-bottom:2px}
+  .card .fsec{margin-bottom:7px}
+  .card .fsec .fl{font-size:9px;letter-spacing:.15em;color:var(--ink35);font-weight:700;margin-bottom:1px}
+  .card .fsec p{font-size:12.5px;line-height:1.65}
+  .card .unb{font-size:10px;color:var(--red);border:1px solid var(--red);padding:2px 7px;margin-left:6px;font-weight:600}
+
+  .ws-empty{padding:70px 40px;text-align:left;max-width:560px;margin:0 auto}
+  .ws-empty h3{font-size:17px;margin-bottom:10px}
+  .ws-empty p{font-size:13px;color:var(--ink50);line-height:1.8;margin-bottom:18px}
+
+  /* report */
+  .report{padding:26px 26px 90px}
+  .rp-failbanner{border:2px solid var(--red);color:var(--red);font-size:12px;line-height:1.7;padding:10px 14px;margin-bottom:20px}
+  .rp-sec{margin-bottom:30px}
+  .rp-sec h3{font-size:13px;font-weight:700;letter-spacing:.1em;border-bottom:2px solid var(--ink);padding-bottom:7px;margin-bottom:13px;display:flex;align-items:baseline;gap:10px}
+  .rp-sec h3 .n{font-family:var(--mono);color:var(--red);font-size:11px}
+  .rp-sec p.sum{font-size:13px;line-height:1.85}
+  .prio-item{display:flex;gap:12px;padding:9px 4px;border-bottom:var(--hair);cursor:pointer;align-items:baseline}
+  .prio-item:hover{background:var(--paper2)}
+  .prio-item .pn{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--red);min-width:24px}
+  .prio-item b{font-size:13px}
+  .prio-item .meta{font-size:10px;color:var(--ink50);margin-left:auto;white-space:nowrap}
+  table.catsum{width:100%;border-collapse:collapse;font-size:12px}
+  .catsum th{font-size:9.5px;letter-spacing:.14em;color:var(--ink50);text-align:left;padding:6px 8px;border-bottom:2px solid var(--ink);font-weight:700}
+  .catsum td{padding:8px;border-bottom:var(--hair);font-family:var(--mono);font-size:11.5px}
+  .catsum td:first-child{font-family:var(--sans);font-size:12.5px;font-weight:600}
+  .catsum tr.failed-row td{color:var(--red)}
+  .catsum td .csq{display:inline-block;width:8px;height:8px;margin-right:7px;vertical-align:baseline}
+
+  /* log drawer */
+  .logbar{border-top:3px solid var(--ink);background:var(--ink);color:var(--paper);display:none;max-height:170px}
+  .logbar.open{display:block}
+  .logbar .lg-head{display:flex;align-items:center;padding:8px 28px;gap:14px}
+  .logbar .lg-head .microlabel{color:rgba(245,243,238,.5)}
+  .logbar .lg-head button{margin-left:auto;background:transparent;color:var(--paper);border-color:rgba(245,243,238,.4);padding:2px 10px;font-size:10px}
+  .logbar .lg-head button:hover{background:var(--red);border-color:var(--red)}
+  .logbar .lg-body{overflow-y:auto;padding:0 28px 14px;max-height:120px}
+  .lg-line{font-family:var(--mono);font-size:10.5px;line-height:1.8;color:rgba(245,243,238,.85);white-space:pre-wrap}
+  .lg-line .t{color:rgba(245,243,238,.4)}
+  .lg-line .tag{color:var(--red);font-weight:700}
+  .lg-line.err{color:#ff8d86}
+
+  /* popover */
+  .pop{position:fixed;z-index:60;background:var(--card);border:2px solid var(--ink);min-width:230px;display:none;box-shadow:6px 6px 0 rgba(23,21,15,.15)}
+  .pop.show{display:block}
+  .pop .pop-h{font-size:9.5px;letter-spacing:.15em;color:var(--ink50);font-weight:700;padding:9px 12px 5px}
+  .pop .pop-item{display:flex;gap:8px;align-items:center;padding:8px 12px;cursor:pointer;border-top:var(--hair);font-size:12.5px}
+  .pop .pop-item:hover{background:var(--paper2)}
+
+  /* restore banner */
+  .restore-banner{background:var(--red);color:#fff;font-size:12px;padding:8px 28px;display:flex;gap:16px;align-items:center}
+  .restore-banner button{background:transparent;color:#fff;border-color:#fff;padding:3px 10px;font-size:10.5px}
+  .restore-banner button:hover{background:#fff;color:var(--red)}
+
+  /* ---------- settings ---------- */
+  .set-wrap{max-width:1060px;margin:0 auto;padding:34px 40px 100px}
+  .set-sec{margin-bottom:46px}
+  .model-row{border:var(--hair);margin-bottom:14px;background:var(--card)}
+  .model-row.def-model{border:2px solid var(--ink)}
+  .mr-top{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:var(--hair);flex-wrap:wrap}
+  .mr-top .microlabel{min-width:70px}
+  .mr-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:14px 16px}
+  .mr-grid .fg{display:flex;flex-direction:column;gap:5px}
+  .mr-grid .fg.g2{grid-column:span 2}
+  .mr-grid input,.mr-grid select{font-size:12px;padding:6px 8px}
+  .test-line{padding:0 16px 14px;font-size:11.5px;line-height:1.7}
+  .test-line.ok{color:var(--ink70)}
+  .test-line.bad{color:var(--red)}
+  .cat-set-row{border:var(--hair);margin-bottom:10px;background:var(--card)}
+  .csr-top{display:flex;align-items:center;gap:12px;padding:11px 16px;flex-wrap:wrap}
+  .csr-top .csq{width:10px;height:10px}
+  .csr-top b{font-size:13.5px;min-width:70px}
+  .csr-top .en{font-size:9px;letter-spacing:.14em;color:var(--ink50);text-transform:uppercase;min-width:80px}
+  .csr-top .ctl{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink50)}
+  .csr-top .spacer{flex:1}
+  .csr-body{border-top:var(--hair);padding:16px;display:none}
+  .cat-set-row.open .csr-body{display:block}
+  .csr-body textarea{font-family:var(--mono);font-size:11.5px;line-height:1.7;min-height:150px}
+  .ctx-chips{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 4px}
+  .ctx-chips span{font-family:var(--mono);font-size:10px;border:1px solid var(--ink35);color:var(--ink50);padding:2px 8px}
+  .ctx-note{font-size:11px;color:var(--ink50);margin-top:8px;line-height:1.65}
+
+  /* ---------- params drawer ---------- */
+  .params-overlay{position:fixed;inset:0;background:rgba(23,21,15,.35);z-index:70;display:none}
+  .params-overlay.show{display:block}
+  .params{position:fixed;top:0;right:-420px;width:400px;height:100vh;background:var(--paper);z-index:71;border-left:6px solid var(--ink);overflow-y:auto;transition:right .22s cubic-bezier(.2,.8,.2,1)}
+  .params.show{right:0}
+  .pm-head{display:flex;align-items:center;padding:20px 24px;border-bottom:var(--hair)}
+  .pm-head h3{font-size:16px;font-weight:700}
+  .pm-head .microlabel{display:block;margin-top:2px}
+  .pm-head button{margin-left:auto}
+  .pm-note{font-size:11px;line-height:1.7;color:var(--ink50);padding:14px 24px;border-bottom:var(--hair);background:var(--card)}
+  .pm-note b{color:var(--red)}
+  .pm-group{padding:18px 24px 22px;border-bottom:var(--hair)}
+  .pm-group h4{font-size:10px;letter-spacing:.16em;color:var(--ink50);font-weight:700;margin-bottom:14px;text-transform:uppercase}
+  .pm-row{display:flex;align-items:center;gap:12px;margin-bottom:13px}
+  .pm-row label{font-size:12px;min-width:108px;flex-shrink:0}
+  .pm-row .pv{font-family:var(--mono);font-size:11px;min-width:44px;text-align:right;color:var(--red);font-weight:600}
+  .pm-row input[type=range]{flex:1}
+  .pm-row select{width:auto;flex:1;font-size:12px;padding:5px 8px}
+  .pm-row .tg{flex:1;display:flex;justify-content:flex-end}
+
+  /* toast */
+  .toasts{position:fixed;left:24px;bottom:24px;z-index:90;display:flex;flex-direction:column;gap:8px}
+  .toast{background:var(--ink);color:var(--paper);font-size:12px;padding:11px 16px;max-width:340px;line-height:1.6;border-left:4px solid var(--red);animation:tin .25s cubic-bezier(.2,.8,.2,1)}
+  .toast.red{background:var(--red);color:#fff}
+  @keyframes tin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+
+  .streaming-card{border:1px dashed var(--ink35);padding:12px 15px;margin-bottom:14px;color:var(--ink50);font-size:12px}
+  .streaming-card .dots::after{content:"…";animation:dots 1.2s steps(4) infinite}
+  @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">
+    <div class="sq"></div>
+    <div><b>ARGUS</b><span class="microlabel">AI 文稿审阅 · MVP 原型</span></div>
+  </div>
+  <div class="navtabs">
+    <div class="navtab on" data-page="new"><span class="no">01</span>新建审阅</div>
+    <div class="navtab" data-page="ws"><span class="no">02</span>审阅工作台<span class="session-chip" id="navSess"></span></div>
+    <div class="navtab" data-page="settings"><span class="no">03</span>设置</div>
+  </div>
+  <div class="nav-right">
+    <button class="danger" id="btnParams">⚙ 参数实验室</button>
+  </div>
+</nav>
+
+<!-- ================= PAGE 1 : NEW REVIEW ================= -->
+<section class="page on" id="page-new">
+  <div class="new-wrap">
+    <div class="new-left">
+      <div class="sec-head"><span class="n">1.1</span><h2>原文输入</h2><span class="hint">支持 Markdown · 粘贴后结构将被保留</span></div>
+      <textarea class="doc-input" id="docInput" spellcheck="false" placeholder="粘贴需要审阅的文章 / 演讲稿 / 逐字稿 / Markdown 文稿……"></textarea>
+      <div class="charcount" id="charCount"><span>0 字符</span><span id="charLimit">0 / 30 000</span></div>
+      <div class="new-actions">
+        <button class="primary" id="btnStart" style="font-size:14px;padding:12px 34px">开始审阅 →</button>
+        <div class="errbox" id="startErrs"><h5>无法开始审阅 · 请检查以下项</h5><ul id="startErrList"></ul></div>
+        <div class="info-note">本产品是审阅工具，不是编辑器：原文在此输入后于工作台中只读；系统只发现问题、解释问题、提出建议，不修改原文（PRD §2）。</div>
+      </div>
+    </div>
+    <div class="new-right">
+      <div class="sec-head"><span class="n">1.2</span><h2>Review Category</h2><span class="hint" id="catCount"></span></div>
+      <div class="catlist" id="catList"></div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button class="mini" id="selAll">全选</button>
+        <button class="mini" id="selNone">清空</button>
+        <button class="mini" id="selDefault">恢复默认</button>
+      </div>
+      <div class="info-note" style="margin-top:22px">每个 Category 使用完全独立的 Prompt，可并行执行；单项失败不影响其他类别。在 <b>设置 → Review Categories</b> 中可自定义。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PAGE 2 : WORKSPACE ================= -->
+<section class="page" id="page-ws">
+  <div class="restore-banner" id="restoreBanner" style="display:none">
+    <span>↩ 已恢复最近一次 Review 结果（演示 PRD §54 · 刷新不丢数据）</span>
+    <button id="btnClearRestore">清除并新建</button>
+  </div>
+  <div class="ws-statusbar">
+    <span class="ws-stat">文档字数<b id="stWords">—</b></span>
+    <span class="ws-stat">已选类别<b id="stCats">—</b></span>
+    <span class="ws-stat">批注<b id="stFindings">—</b></span>
+    <span class="badge idle" id="stStatus">IDLE</span>
+    <div class="ws-actions">
+      <button class="mini" id="btnLog">☰ 流水日志</button>
+      <button class="mini" id="btnRerunAll">↻ 重新分析</button>
+      <button class="mini primary" id="btnViewReport" disabled>查看报告</button>
+      <button class="mini" id="btnGoSettings">设置</button>
+    </div>
+  </div>
+  <div class="runstrip" id="runStrip"></div>
+  <div class="ws-main" id="wsMain">
+    <div class="docpane" id="docPane">
+      <span class="divider-hint">LINKS · 只读</span>
+      <div class="docbody" id="docBody"></div>
+    </div>
+    <div class="divider" id="divider" title="拖动调整分栏（宽度会被保存）"></div>
+    <div class="sidepane" id="sidePane">
+      <div class="side-tabs">
+        <div class="side-tab on" data-tab="findings">批注 FINDINGS<span class="tn" id="tnF"></span></div>
+        <div class="side-tab disabled" data-tab="report" id="tabReport">报告 REPORT<span class="tn" id="tnR"></span></div>
+      </div>
+      <div class="filters" id="filters"></div>
+      <div class="cards" id="cards"></div>
+      <div class="report" id="reportView" style="display:none"></div>
+    </div>
+  </div>
+  <div class="logbar" id="logBar">
+    <div class="lg-head"><span class="microlabel">PROTOKOLL · 运行流水</span><button id="btnClearLog">清空</button></div>
+    <div class="lg-body" id="logBody"></div>
+  </div>
+</section>
+
+<!-- ================= PAGE 3 : SETTINGS ================= -->
+<section class="page" id="page-settings">
+  <div class="set-wrap">
+    <div class="set-sec">
+      <div class="sec-head"><span class="n">3.1</span><h2>Models 模型配置</h2><span class="hint">系统不内置 API Key · 全部由用户配置（PRD §21–23）</span></div>
+      <div id="modelList"></div>
+      <button id="btnAddModel">＋ 新增模型配置</button>
+    </div>
+    <div class="set-sec">
+      <div class="sec-head"><span class="n">3.2</span><h2>Review Categories 审阅类别</h2><span class="hint">每类独立 Prompt · 修改互不影响（PRD §15–17 §45）</span></div>
+      <div id="catSetList"></div>
+      <button id="btnAddCat">＋ 新建 Category</button>
+    </div>
+  </div>
+</section>
+
+<!-- params drawer -->
+<div class="params-overlay" id="pmOverlay"></div>
+<aside class="params" id="pmDrawer">
+  <div class="pm-head">
+    <div><h3>参数实验室</h3><span class="microlabel">PRD §71 待定参数 + 模拟参数</span></div>
+    <button class="mini" id="btnCloseParams">✕ 关闭</button>
+  </div>
+  <div class="pm-note">标注 <b>即时</b> 的参数立即生效；其余在<b>下一次审阅</b>时生效。参数与最近一次 Review 会保存在本地（演示 §53–54）。</div>
+  <div id="pmBody"></div>
+</aside>
+
+<div class="pop" id="pop"></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ================================================================
+   0. 常量与状态
+   ================================================================ */
+const CAT_COLORS={logic:'var(--c-logic)',thesis:'var(--c-thesis)',argument:'var(--c-argument)',
+  rhetoric:'var(--c-rhetoric)',structure:'var(--c-structure)',clarity:'var(--c-clarity)',speech:'var(--c-speech)'};
+const SEV_ZH={high:'严重',medium:'建议修改',low:'可优化'};
+
+const DEFAULT_CATS=[
+ {id:'logic',zh:'逻辑',en:'Logic',enabled:true,def:true,
+  desc:'推理跳跃 · 因果错误 · 前后矛盾 · 结论扩大（只分析文本内部逻辑，不做事实核查）',
+  prompt:'你是逻辑审阅专家。检查：推理跳跃、因果关系错误、前后矛盾、结论扩大、前提不足、概念变化、概念偷换、逻辑链缺失。\n只分析文本内部逻辑，不判断外部事实是否真实。\nSeverity 规则：high=明显影响理解或核心论证；medium=降低内容质量；low=不破坏主要内容。'},
+ {id:'thesis',zh:'论点',en:'Thesis',enabled:true,def:true,
+  desc:'核心观点是否明确 · 是否前后一致 · 结论是否出现新论点',
+  prompt:'你是论点审阅专家。检查：核心观点是否明确、子观点是否明确、观点是否前后一致、是否偏离主题、是否过度扩大、结论是否引入新的核心观点。'},
+ {id:'argument',zh:'论证',en:'Argument',enabled:true,def:true,
+  desc:'论据是否支持论点 · 论据是否不足 · 是否只有结论没有论证',
+  prompt:'你是论证审阅专家。检查：论据是否支持论点、论据是否不足、推理是否完整、例子是否支持结论、论点与论据是否脱节、是否只有结论没有论证。不进行事实核查。'},
+ {id:'rhetoric',zh:'修辞',en:'Rhetoric',enabled:true,def:true,
+  desc:'措辞 · 句式 · 节奏 · 重复 · 空洞表达 · 过度修饰',
+  prompt:'你是修辞审阅专家。检查：措辞、表达力度、句式、节奏、重复、空洞表达、过度修饰、不自然表达。'},
+ {id:'structure',zh:'结构',en:'Structure',enabled:true,def:true,
+  desc:'章节顺序 · 信息组织 · 衔接 · 重复章节（可产生段落级 Finding）',
+  prompt:'你是结构审阅专家。检查：章节顺序、段落顺序、信息组织、内容衔接、开头、结尾、重复章节、主题跳跃。可以输出段落级 Finding，不限于单句。'},
+ {id:'clarity',zh:'清晰度',en:'Clarity',enabled:true,def:true,
+  desc:'歧义 · 句子过长 · 指代不清 · 啰嗦表达',
+  prompt:'你是清晰度审阅专家。检查：歧义、句子过长、表达过度抽象、主语不清晰、指代不清晰、信息密度过高、不必要的复杂表达、啰嗦表达。'},
+ {id:'speech',zh:'演讲表达',en:'Speech',enabled:false,def:false,
+  desc:'是否适合口语 · 是否第一次就能听懂 · 节奏是否单调（默认禁用）',
+  prompt:'你是演讲稿审阅专家。检查：句子是否适合口语表达、是否过长、信息是否第一次听就容易懂、表达是否重复、节奏是否单调、重点是否清晰。'},
+];
+
+const ERRORS={
+ timeout:{retriable:true,msg:n=>`Provider 请求超时${n?` · 已自动重试 ${n} 次仍失败`:''}。建议检查网络后手动重跑该类别。`},
+ ratelimit:{retriable:true,msg:n=>`Rate Limit（429）${n?` · 已自动重试 ${n} 次`:''}。建议降低并发上限（参数实验室 → 执行）或稍后重跑。`},
+ auth:{retriable:false,msg:()=>`API Key 无效（401）。请到 设置 → Models 检查该模型的 Key；此类配置错误不会自动重试。`},
+ model:{retriable:false,msg:()=>`模型不存在（404）。请检查模型名称拼写；此类配置错误不会自动重试。`},
+ ctx:{retriable:false,msg:()=>`Context Length 超限。建议在参数实验室调低「最大文稿长度」，或改用分块策略（PRD §34–36）。`},
+};
+
+const SAMPLE_DOC=`# 为什么我们应该全面推行四天工作制
+
+## 引言
+
+四天工作制是最近几年讨论非常多的话题。很多公司开始尝试四天工作制，并且取得了非常好的效果。这一点非常重要。因此，四天工作制应该在所有行业全面推行。
+
+## 数据证明了一切
+
+微软日本公司在 2019 年试行四天工作制后，生产效率提升了 40%。这说明只要减少工作时间，员工就会自动提升效率。既然如此，其他公司没有理由不跟进。
+
+此外，根据我们内部的调查，大部分员工都支持四天工作制。员工的满意度就是企业最重要的指标。
+
+## 反对意见不值一提
+
+有人认为某些行业无法实行四天工作制，比如医院和制造业。但这种观点过于保守，是被旧思维束缚的结果。时代在变化，任何困难都可以通过技术手段解决。
+
+## 结论
+
+综上所述，四天工作制已经被充分验证，全面推行势在必行。这一点非常重要。而且推行四天工作制之后，公司的招聘成本、运营成本、员工离职率都会显著下降，企业的竞争力将实现跨越式提升。总而言之，这是一件有百利而无一害的事情。`;
+
+/* Finding 库：quote 必须与 Block plainText 精确匹配 */
+const LIB=[
+ {cat:'logic',sev:'high',title:'推理跳跃',quote:'因此，四天工作制应该在所有行业全面推行',
+  problem:'前文只有「讨论多、有公司尝试、效果好」，没有能为「所有行业全面推行」提供支持的证据。',
+  reason:'从个别公司的尝试直接推广到所有行业，缺少中间的论证环节。',
+  suggestion:'降低结论强度（例如「值得更多行业试点」），或补充跨行业的证据。'},
+ {cat:'logic',sev:'high',title:'以偏概全的因果推断',quote:'这说明只要减少工作时间，员工就会自动提升效率',
+  problem:'用微软日本一家公司的结果推出普适因果规律，「这说明」之后的结论远超该案例能支持的范围。',
+  reason:'单一样本，且效率提升可能来自其他因素（试点效应、测量方式等）。',
+  suggestion:'明确这是单一案例的观察，补充多来源、多行业的数据后再下因果判断。'},
+ {cat:'logic',sev:'medium',title:'绝对化断言',quote:'任何困难都可以通过技术手段解决',wrongLine:true,
+  problem:'无限全称断言，前文没有任何信息可以支持「任何困难」。',
+  reason:'医院排班、制造业连续性等约束并不完全是技术问题。',
+  suggestion:'删除「任何」，改为有限范围的表述，例如「部分排班与流程问题可以借助工具缓解」。'},
+ {cat:'logic',sev:'medium',title:'结论扩大',quote:'这是一件有百利而无一害的事情',
+  problem:'前文没有讨论任何成本与风险，直接断言「无任何害处」。',
+  reason:'只列收益不列成本的结论不成立，属于结论范围大于论据支持范围。',
+  suggestion:'承认存在权衡（如协调成本），或删除该句。'},
+ {cat:'logic',sev:'medium',title:'整体论证范围未界定',quote:'整体推进节奏还需要更多论证',unanchored:true,
+  problem:'从全局看，文章未界定「全面推行」的范围、阶段与前提条件，论证对象模糊。',
+  reason:'核心主张缺少可检验的边界，逻辑链在「全面」处断裂。',
+  suggestion:'在引言处明确推行的范围与阶段假设，再组织后续论证。'},
+ {cat:'thesis',sev:'medium',title:'结论引入新论点',quote:'公司的招聘成本、运营成本、员工离职率都会显著下降',
+  problem:'结论段突然引入三个前文从未论证过的新收益判断。',
+  reason:'结论应总结已有论证，不应出现新的核心观点。',
+  suggestion:'删除这三个判断，或移到正文单独成段并补充论证。'},
+ {cat:'argument',sev:'high',title:'论据不足',quote:'微软日本公司在 2019 年试行四天工作制后，生产效率提升了 40%',
+  problem:'全文唯一的具体论据，却被用来支持「所有行业全面推行」的结论。',
+  reason:'单案例 + 效率指标口径不明，论据强度与结论强度严重不匹配。',
+  suggestion:'补充不同行业、不同规模的对照数据，或收窄结论。'},
+ {cat:'argument',sev:'medium',title:'论据模糊',quote:'根据我们内部的调查，大部分员工都支持四天工作制',
+  problem:'调查的范围、样本量、「大部分」的具体比例都没有交代。',
+  reason:'读者无法评估该论据的力度，论证不可检验。',
+  suggestion:'给出样本与比例（如「内部 200 人问卷，68% 支持」），或注明这是内部印象。'},
+ {cat:'rhetoric',sev:'low',title:'空洞评价',quote:'取得了非常好的效果',
+  problem:'「非常好的效果」没有任何信息量，属于空洞表达。',
+  reason:'形容词堆叠不构成表达力度，反而削弱可信度。',
+  suggestion:'替换为一个具体效果，如「人均产出维持不变而离职率下降」。'},
+ {cat:'rhetoric',sev:'low',title:'预设立场的标题',quote:'反对意见不值一提',
+  problem:'标题先贬后驳，把读者置于被说服的位置，削弱开放性。',
+  reason:'修辞上预判了结论，读者会先产生抵触再读论证。',
+  suggestion:'改为中性的「对反对意见的回应。'},
+ {cat:'rhetoric',sev:'low',title:'空洞且重复的强调',quote:'这一点非常重要。',hint:'last',
+  problem:'「这一点非常重要。」在引言与结论中原样出现两次，且不提供任何具体信息。',
+  reason:'空洞的强调句重复出现，同时触发重复与空洞表达两类问题。',
+  suggestion:'删除两处该句，或替换为具体的收益陈述。'},
+ {cat:'structure',sev:'medium',title:'段落归属错位',quote:'此外，根据我们内部的调查，大部分员工都支持四天工作制。员工的满意度就是企业最重要的指标。',
+  problem:'员工态度数据与本章「数据证明效率」的主题不一致，信息组织被打断。',
+  reason:'该段属于员工侧证据，与效率证据分属不同论证线。',
+  suggestion:'将该段移出本章，单独设「员工侧证据」小节，或为本章改名。'},
+ {cat:'structure',sev:'low',title:'结尾双重收束',quote:'总而言之，这是一件有百利而无一害的事情。',
+  problem:'段落已有「综上所述」式收束，结尾又追加一次总结，拖沓。',
+  reason:'重复的收束功能让结尾失去力度。',
+  suggestion:'删除末句，或与前句合并为一个收束。'},
+ {cat:'clarity',sev:'high',title:'长句信息过载',quote:'而且推行四天工作制之后，公司的招聘成本、运营成本、员工离职率都会显著下降，企业的竞争力将实现跨越式提升',
+  problem:'一个句子包含四个并列判断，信息密度过高。',
+  reason:'读者需要同时跟踪多个主语与量级变化，难以一次消化。',
+  suggestion:'拆为两到三个短句，每句一个判断。'},
+ {cat:'clarity',sev:'medium',title:'模糊归因',quote:'这种观点过于保守，是被旧思维束缚的结果',
+  problem:'对反对意见的定性没有具体指向，「保守」「旧思维」指代不明。',
+  reason:'标签式表达代替了说明，读者不知道指什么。',
+  suggestion:'直接指出该观点的具体局限，如「该观点忽略了轮班制行业已有试点」。'},
+ {cat:'clarity',sev:'low',title:'重复表述',quote:'很多公司开始尝试四天工作制，并且取得了非常好的效果',
+  problem:'「四天工作制」在本句与下句连续出现，句式重复。',
+  reason:'近距离重复让开篇显得啰嗦。',
+  suggestion:'第二处改用代词或省略主语。'},
+ {cat:'clarity',sev:'low',title:'绝对化措辞',quote:'四天工作制已经被充分验证',dup:'a',
+  problem:'「被充分验证」语气过强，与前文单案例论据不匹配。',
+  reason:'绝对化措辞会让读者立即寻找反例。',
+  suggestion:'改为「在部分公司显示出积极信号」。'},
+ {cat:'clarity',sev:'low',title:'绝对化表达',quote:'四天工作制已经被充分验证',dup:'b',
+  problem:'「充分验证」缺少限定，表述过于绝对。',
+  reason:'与论据强度不一致的断言削弱整体可信度。',
+  suggestion:'增加限定词，如「在已有试点中」。'},
+ {cat:'speech',sev:'medium',title:'句子不适合口语',quote:'而且推行四天工作制之后，公司的招聘成本、运营成本、员工离职率都会显著下降',
+  problem:'演讲场景下单句超过 40 字，听众第一次听难以跟上。',
+  reason:'口语理解依赖短句与停顿，长并列句只能靠回读。',
+  suggestion:'拆成三个短句，并在关键处加入停顿或设问。'},
+ {cat:'speech',sev:'low',title:'节奏单调',quote:'四天工作制是最近几年讨论非常多的话题',
+  problem:'全文多为中等长度陈述句，缺少节奏变化与强调点。',
+  reason:'均匀的句长会让听众注意力下滑。',
+  suggestion:'在开头与各段结尾加入短句或设问制造节奏。'},
+];
+
+const DEFAULT_PARAMS={
+  split:60, readWidth:'normal', showLines:true,
+  concurrency:3, speed:2, baseDur:3, retries:2,
+  failMode:'none', forcedCat:'structure',
+  maxLen:30000,
+  prioCount:8, reportDelay:1.5,
+  simDup:true, simUnanchored:true, simWrongOffset:true,
+  restore:true,
+};
+
+const state={
+  page:'new',
+  params:{...DEFAULT_PARAMS},
+  cats:JSON.parse(JSON.stringify(DEFAULT_CATS)),
+  models:[{id:'m1',provider:'OpenAI-compatible',model:'glm-4.7',apiKey:'sk-demo-••••-1234',baseUrl:'https://open.bigmodel.cn/api/paas/v4',temperature:0.2,maxTokens:4096,def:true}],
+  checked:new Set(),
+  session:null,   // {text,blocks,selIds,runs:{},findings:[],status,report,startedAt}
+  selFid:null, filCat:'all', filSev:'all', sideTab:'findings',
+  logs:[], restored:false,
+};
+let sim={timers:new Set(), active:0, queue:[]};
+
+/* ================================================================
+   1. 工具
+   ================================================================ */
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const catOf=id=>state.cats.find(c=>c.id===id);
+function toast(msg,red){
+  const t=document.createElement('div'); t.className='toast'+(red?' red':''); t.textContent=msg;
+  $('toasts').appendChild(t); setTimeout(()=>t.remove(),3400);
+}
+function log(tag,msg,err){
+  const d=new Date(), t=[d.getHours(),d.getMinutes(),d.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+  state.logs.push({t,tag,msg,err});
+  if(state.logs.length>300) state.logs.shift();
+  renderLog(); save();
+}
+function renderLog(){
+  $('logBody').innerHTML=state.logs.slice().reverse().map(l=>
+    `<div class="lg-line${l.err?' err':''}"><span class="t">${l.t}</span>  <span class="tag">[${l.tag}]</span> ${esc(l.msg)}</div>`).join('');
+}
+function nowStr(){return new Date().toLocaleString('zh-CN',{hour12:false})}
+
+/* ================================================================
+   2. Markdown → Blocks（§29）
+   ================================================================ */
+function parseBlocks(text){
+  // 按源文本行分组：渲染结构 + 行号索引（审阅基于全文，定位基准 = 行号 + 内容 + hash）
+  const lines=text.replace(/\r\n/g,'\n').split('\n');
+  const groups=[];let cur=null;
+  lines.forEach((ln,i)=>{
+    if(ln.trim()===''){cur=null;return;}
+    if(!cur){cur={lines:[ln],line:i+1};groups.push(cur);}
+    else cur.lines.push(ln);
+  });
+  return groups.map((g,idx)=>{
+    const raw=g.lines.join('\n');
+    let type='paragraph',plain=raw;
+    if(/^#{1,6}\s/.test(raw)){const m=raw.match(/^(#{1,6})\s+([\s\S]*)$/);type='heading'+m[1].length;plain=m[2];}
+    else if(/^```/.test(raw)){type='code';plain=raw.replace(/^```\w*\n?/,'').replace(/\n?```$/,'');}
+    else if(/^>\s?/.test(raw)){type='quote';plain=r.replace(/^>\s?/mg,'');}
+    else if(/^([-*]|\d+\.)\s/.test(raw)){type='list_item';plain=raw.replace(/^([-*]|\d+\.)\s+/,'');}
+    return {id:'block_'+String(idx+1).padStart(3,'0'),type,raw,plain,order:idx,line:g.line};
+  });
+}
+function inlineMd(s){
+  return esc(s)
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+/* ================================================================
+   3. Finding 生成 / 锚定 / 去重（§30–33 §38 §65）
+   ================================================================ */
+let fidSeq=1;
+/* ---- 定位算法：行号 + 内容 + hash 三信号（不信任任何单一信号）---- */
+function normText(s){return s.replace(/\s+/g,'')}
+function hashText(s){let h=5381;const t=normText(s);for(let i=0;i<t.length;i++)h=((h<<5)+h+t.charCodeAt(i))>>>0;return h.toString(16).padStart(8,'0')}
+function normMap(raw){let n='',map=[];for(let i=0;i<raw.length;i++){if(!/\s/.test(raw[i])){n+=raw[i];map.push(i)}}return{n,map}}
+function quickLine(quote,blocks,last){
+  let line=null;
+  blocks.forEach(b=>{let i=b.plain.indexOf(quote);
+    while(i!==-1){const l=b.line+((b.plain.slice(0,i).match(/\n/g)||[]).length);
+      if(last)line=l;else if(line===null)line=l;
+      i=b.plain.indexOf(quote,i+1);}});
+  return line;
+}
+function anchorOne(f,blocks,catName){
+  const out={...f,id:'f'+(fidSeq++),categoryId:f.cat,anchorStatus:'unanchored',line:null,hash:hashText(f.quote)};
+  const hq=normText(f.quote);
+  // ① 内容匹配：quote 归一化后在全文范围收集候选（忽略空白差异）
+  const cands=[];
+  blocks.forEach(b=>{
+    const {n,map}=normMap(b.plain);
+    let k=n.indexOf(hq);
+    while(k!==-1){cands.push({b,s:map[k],e:map[k+hq.length-1]+1});k=n.indexOf(hq,k+1);}
+  });
+  if(!cands.length){
+    log('锚定',`${catName}：「${f.title}」内容在全文未命中 → 保留为 unanchored（右侧显示 / 左侧不高亮）`,true);
+    return out;
+  }
+  // ② 行号消歧：多候选时取与 AI 行号提示最接近的一处
+  let c=cands[0];
+  if(cands.length>1){
+    c=cands.reduce((a,x)=>Math.abs(x.b.line-(f.lineHint||0))<Math.abs(a.b.line-(f.lineHint||0))?x:a);
+    log('锚定',`${catName}：「${f.title}」quote 命中 ${cands.length} 处 → 按行号提示 L${f.lineHint} 消歧，定位至 L${c.b.line}`);
+  }else if(f.lineHint&&f.lineHint!==c.b.line){
+    log('锚定',`${catName}：「${f.title}」行号提示 L${f.lineHint} 与命中行不符 → 以内容匹配为准，定位至 L${c.b.line}`);
+  }
+  // ③ hash 校验
+  const realHash=hashText(c.b.plain.slice(c.s,c.e));
+  if(realHash!==out.hash) log('锚定',`${catName}：「${f.title}」hash 不一致（${realHash} ≠ ${out.hash}）→ 仍以内容匹配为准`,true);
+  out.blockId=c.b.id; out.startOffset=c.s; out.endOffset=c.e;
+  out.line=c.b.line+((c.b.plain.slice(0,c.s).match(/\n/g)||[]).length);
+  out.anchorStatus='anchored';
+  return out;
+}
+function genFindings(catId,blocks){
+  const c=catOf(catId), zh=c.zh;
+  let src=LIB.filter(f=>f.cat===catId);
+  if(!state.params.simUnanchored) src=src.filter(f=>!f.unanchored);
+  if(!state.params.simDup) src=src.filter(f=>!f.dup);
+  let list=src.map(f=>{
+    const real=quickLine(f.quote,blocks,f.hint==='last');
+    const hint=real==null?null:real+((f.wrongLine&&state.params.simWrongOffset)?4:0);
+    return anchorOne({...f,lineHint:hint},blocks,zh);
+  });
+  log('锚定',`${zh}：${src.length} 条 → 定位算法（内容匹配 → 行号消歧 → hash 校验）`);
+  // 去重：同 Category 内 quote 相同 + 标题相似（§38）
+  const seen=new Map(); const out=[];
+  for(const f of list){
+    const k=f.quote+'|'+f.title.slice(0,2);
+    if(seen.has(k)){ log('去重',`${zh}：合并重复 Finding「${f.title}」（quote 相同 · 问题高度相似）`); continue; }
+    seen.set(k,1); out.push(f);
+  }
+  return out;
+}
+
+/* ================================================================
+   4. 模拟执行引擎（§24–28 §52 §56）
+   ================================================================ */
+function startReview(text,selIds){
+  fidSeq=1;
+  sim.timers.forEach(clearInterval); sim.timers.clear(); sim.active=0; sim.queue=[];
+  const blocks=parseBlocks(text);
+  state.session={text,blocks,selIds:[...selIds],runs:{},findings:[],status:'running',report:null,startedAt:nowStr()};
+  selIds.forEach(id=>state.session.runs[id]={status:'pending',progress:0,count:0,error:null,retries:0});
+  log('解析',`全文 ${text.split('\n').length} 行 · ${blocks.length} 个段落结构（渲染与定位均基于全文行号，不做分块审阅）`);
+  log('编排',`创建 ReviewSession · 选中 ${selIds.length} 个类别 · 并发上限 ${state.params.concurrency}（Provider 限制优先）`);
+  state.selFid=null; state.filCat='all'; state.filSev='all'; state.sideTab='findings';
+  go('ws'); renderWorkspaceAll();
+  sim.queue=[...selIds];
+  pump();
+  save();
+}
+function pump(){
+  while(sim.active<state.params.concurrency&&sim.queue.length){
+    const cid=sim.queue.shift(); sim.active++;
+    startRun(cid);
+  }
+  if(!sim.queue.length&&sim.active===0&&state.session&&state.session.status==='running'){
+    // 由各 run 的终态回调统一判定，此处兜底
+    judgeSession();
+  }
+}
+function startRun(cid){
+  const run=state.session.runs[cid], c=catOf(cid);
+  run.status='running'; run.progress=0; run.retries=0;
+  // 失败判定
+  let failErr=null;
+  if(state.params.failMode==='forced'&&cid===state.params.forcedCat) failErr=pick(['timeout','ratelimit']);
+  else if(state.params.failMode==='random20'&&Math.random()<.2) failErr=pick(['timeout','auth','ctx']);
+  else if(state.params.failMode==='random50'&&Math.random()<.5) failErr=pick(['timeout','ratelimit','auth','model','ctx']);
+  const dur=(state.params.baseDur*(0.75+Math.random()*.5))*1000/state.params.speed;
+  log('执行',`${c.zh}：基于全文上下文分析（不分块 · 不截断） · 独立 Prompt`);
+  const iv=setInterval(()=>{
+    run.progress=Math.min(1,run.progress+120/dur);
+    updateRunCell(cid);
+    if(run.progress>=1){
+      clearInterval(iv); sim.timers.delete(iv);
+      if(failErr&&ERRORS[failErr].retriable&&run.retries<state.params.retries){
+        run.retries++; run.progress=0;
+        log('重试',`${c.zh}：${failErr==='timeout'?'请求超时':'Rate Limit'} → 第 ${run.retries}/${state.params.retries} 次自动重试（网络类错误，§52）`,true);
+        updateRunCell(cid,true);
+        startRun_retry(cid,failErr,dur);
+        return;
+      }
+      if(failErr){
+        run.status='failed'; run.error=ERRORS[failErr].msg(run.retries);
+        log('执行',`${c.zh}：失败 · ${ERRORS[failErr].msg(run.retries)}`,true);
+        toast(`${c.zh} 审阅失败（其他类别不受影响）`,true);
+        finishRun(cid);
+      }else{
+        completeRun(cid);
+      }
+    }
+  },120);
+  sim.timers.add(iv);
+  updateRunCell(cid);
+}
+function startRun_retry(cid,errType,dur){
+  const run=state.session.runs[cid],c=catOf(cid);
+  // 每次重试约 45% 概率仍失败
+  const stillFail=Math.random()<.45;
+  const iv=setInterval(()=>{
+    run.progress=Math.min(1,run.progress+120/(dur*0.7));
+    updateRunCell(cid);
+    if(run.progress>=1){
+      clearInterval(iv);sim.timers.delete(iv);
+      if(stillFail&&run.retries<state.params.retries){
+        run.retries++;run.progress=0;
+        log('重试',`${c.zh}：第 ${run.retries}/${state.params.retries} 次自动重试……`,true);
+        startRun_retry(cid,errType,dur);return;
+      }
+      if(stillFail){
+        run.status='failed';run.error=ERRORS[errType].msg(run.retries);
+        log('执行',`${c.zh}：重试 ${run.retries} 次后仍失败 · ${run.error}`,true);
+        toast(`${c.zh} 审阅失败（其他类别不受影响）`,true);
+        finishRun(cid);
+      }else{
+        log('重试',`${c.zh}：自动重试成功，继续完成分析`);
+        completeRun(cid);
+      }
+    }
+  },120);
+  sim.timers.add(iv);
+}
+function completeRun(cid){
+  const run=state.session.runs[cid],c=catOf(cid);
+  const fs=genFindings(cid,state.session.blocks);
+  state.session.findings=state.session.findings.filter(f=>f.categoryId!==cid).concat(fs);
+  run.status='completed'; run.count=fs.length; run.progress=1; run.error=null;
+  log('执行',`${c.zh}：完成 · ${fs.length} 个 Finding（Schema 校验通过）`);
+  finishRun(cid);
+}
+function finishRun(cid){
+  sim.active--;
+  renderDoc(); renderCards(); renderFilters(); updateTopStats();
+  judgeSession();
+  pump();
+  save();
+}
+function judgeSession(){
+  const S=state.session; if(!S) return;
+  const runs=Object.entries(S.runs);
+  if(runs.some(([,r])=>r.status==='pending'||r.status==='running')) return;
+  const anyFail=runs.some(([,r])=>r.status==='failed');
+  const anyDone=runs.some(([,r])=>r.status==='completed');
+  S.status=anyFail?(anyDone?'partial_failed':'failed'):'completed';
+  log('编排',`全部类别终态：${S.status==='completed'?'completed':anyFail?(anyDone?'partial_failed（单类失败不影响整体，可单独重跑）':'failed'):''}`);
+  updateTopStats(); renderRunStrip();
+  if(anyDone){
+    log('报告',`Review 阶段结束 → ${state.params.reportDelay}s 后基于已有 Findings 生成汇总（不重新审阅全文）`);
+    const t=setTimeout(()=>{ buildReport(); },state.params.reportDelay*1000/state.params.speed);
+    sim.timers.add(t);
+  }else{
+    toast('全部类别失败 · 请检查模型配置后重试',true);
+  }
+}
+function buildReport(){
+  const S=state.session; if(!S) return;
+  const fs=S.findings;
+  const cnt=sev=>fs.filter(f=>f.severity===sev).length;
+  const topCats={};fs.forEach(f=>topCats[f.categoryId]=(topCats[f.categoryId]||0)+1);
+  const top=Object.entries(topCats).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([id])=>catOf(id).zh).join('、');
+  const failed=Object.entries(S.runs).filter(([,r])=>r.status==='failed').map(([id])=>id);
+  const order={high:0,medium:1,low:2};
+  const prio=fs.slice().sort((a,b)=>order[a.sev]-order[b.sev]).slice(0,state.params.prioCount).map(f=>f.id);
+  const catSummaries=S.selIds.map(id=>{
+    const r=S.runs[id],mine=fs.filter(f=>f.categoryId===id);
+    return {categoryId:id,high:mine.filter(f=>f.sev==='high').length,medium:mine.filter(f=>f.sev==='medium').length,
+      low:mine.filter(f=>f.sev==='low').length,failed:r.status==='failed',
+      summary:mine.length?`主要问题：${[...new Set(mine.map(f=>f.title))].slice(0,2).join('、')}`:'未发现问题'};
+  });
+  S.report={
+    summary:`本次审阅共运行 ${S.selIds.length} 个类别，发现 ${fs.length} 个问题（严重 ${cnt('high')} · 建议修改 ${cnt('medium')} · 可优化 ${cnt('low')}）。问题集中在${top||'—'}，建议优先处理与结论扩大、论据不足相关的条目。`
+      +(failed.length?` 注意：${failed.map(id=>catOf(id).zh).join('、')} 运行失败，以下统计未包含其结果。`:''),
+    priorityIds:prio,categorySummaries:catSummaries,failedIds:failed,
+  };
+  log('报告',`ReviewReport 生成 · 优先问题 ${prio.length} 条（均关联已有 Finding）`);
+  toast('汇总报告已生成 → 右侧「报告」标签');
+  updateTopStats(); if(state.sideTab==='report') renderReport();
+  save();
+}
+function rerunCategory(cid){
+  const S=state.session,c=catOf(cid);
+  const before=S.findings.filter(f=>f.categoryId===cid).length;
+  S.findings=S.findings.filter(f=>f.categoryId!==cid);
+  S.runs[cid]={status:'pending',progress:0,count:0,error:null,retries:0};
+  S.status='running'; S.report=null;
+  log('重跑',`${c.zh}：删除旧 Findings（${before} 条）· 使用最新 Prompt 与当前模型配置重新执行（其他类别不受影响，§28）`);
+  renderDoc(); renderCards(); updateTopStats(); renderRunStrip();
+  sim.queue.push(cid); pump(); save();
+}
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+/* ================================================================
+   5. 页面切换 / New Review 渲染
+   ================================================================ */
+function go(page){
+  state.page=page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+page));
+  document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('on',t.dataset.page===page));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.navtab').forEach(t=>t.addEventListener('click',()=>{
+  const p=t.dataset.page;
+  if(p==='ws'&&!state.session){toast('尚无审阅会话 · 请先在「新建审阅」开始');return;}
+  go(p);
+}));
+
+function renderNewCats(){
+  const box=$('catList');
+  const cats=state.cats.filter(c=>c.enabled).sort((a,b)=>a.order-b.order);
+  box.innerHTML=cats.map(c=>`
+    <div class="catrow" data-id="${c.id}">
+      <span class="csq" style="background:${CAT_COLORS[c.id]||'var(--ink)'}"></span>
+      <div style="flex:1"><b>${esc(c.zh)}</b><span class="en">${c.en}</span><div class="desc">${esc(c.desc||'')}</div></div>    </div>`).join('')||'<div style="padding:16px;font-size:12px;color:var(--ink50)">没有启用的类别 · 请到设置中启用</div>';
+  box.querySelectorAll('.catrow').forEach(row=>{
+    const id=row.dataset.id;
+    row.addEventListener('click',e=>{
+      if(e.target.tagName==='INPUT')return;
+      state.checked.has(id)?state.checked.delete(id):state.checked.add(id);
+      renderNewCats(); updateCharCount();
+    });
+  });
+  // 复选框覆盖在 csq 位置：改为在行首插入 checkbox
+  box.querySelectorAll('.catrow').forEach(row=>{
+    const cb=document.createElement('input');cb.type='checkbox';
+    cb.checked=state.checked.has(row.dataset.id);
+    cb.style.marginTop='3px';
+    row.insertBefore(cb,row.children[1]);
+    cb.addEventListener('click',e=>e.stopPropagation());
+    cb.addEventListener('change',()=>{cb.checked?state.checked.add(row.dataset.id):state.checked.delete(row.dataset.id);updateCount();});
+  });
+  updateCount();
+  function updateCount(){
+    const n=[...state.checked].filter(id=>catOf(id)&&catOf(id).enabled).length;
+    $('catCount').textContent=`已选 ${n} / ${cats.length}`;
+  }
+}
+function defaultChecks(){
+  state.checked=new Set(state.cats.filter(c=>c.enabled&&c.def).map(c=>c.id));
+}
+function updateCharCount(){
+  const v=$('docInput').value;
+  const n=[...v].length;
+  $('charCount').children[0].textContent=`${v.trim()?v.trim().length:0} 字 · ${n} 字符`;
+  $('charLimit').textContent=`${n} / ${state.params.maxLen.toLocaleString()}`;
+  $('charCount').classList.toggle('over',n>state.params.maxLen);
+}
+$('docInput').addEventListener('input',()=>{updateCharCount();saveSoon();});
+$('selAll').addEventListener('click',()=>{state.checked=new Set(state.cats.filter(c=>c.enabled).map(c=>c.id));renderNewCats();});
+$('selNone').addEventListener('click',()=>{state.checked=new Set();renderNewCats();});
+$('selDefault').addEventListener('click',defaultChecksAndRender);
+function defaultChecksAndRender(){defaultChecks();renderNewCats();}
+
+$('btnStart').addEventListener('click',()=>{
+  const errs=[];
+  const text=$('docInput').value.trim();
+  if(!text) errs.push('原文为空 — 请粘贴需要审阅的文稿（文章 / 演讲稿 / 逐字稿 / Markdown）。');
+  const sel=[...state.checked].filter(id=>catOf(id)&&catOf(id).enabled);
+  if(!sel.length) errs.push('未选择任何 Review Category — 至少勾选一个类别（可在设置中启用更多）。');
+  if(!state.models.length) errs.push('当前没有可用模型配置 — 请到 设置 → Models 新增并配置模型接口。');
+  const el=$('startErrs');
+  if(errs.length){
+    el.classList.add('show');
+    $('startErrList').innerHTML=errs.map(e=>`<li>${esc(e)}</li>`).join('');
+    return;
+  }
+  el.classList.remove('show');
+  const n=[...$('docInput').value].length;
+  if(n>state.params.maxLen){el.classList.add('show');$('startErrList').innerHTML=`<li>文稿超过最大长度限制（${n} / ${state.params.maxLen.toLocaleString()}）— 可在参数实验室调整「最大文稿长度」。</li>`;return;}
+  startReview($('docInput').value,new Set(sel));
+});
+$('docInput').value=SAMPLE_DOC;
+
+/* ================================================================
+   6. Workspace 渲染
+   ================================================================ */
+function updateTopStats(){
+  const S=state.session; if(!S)return;
+  $('stWords').textContent=S.text.trim().length.toLocaleString();
+  $('stCats').textContent=S.selIds.length;
+  $('stFindings').textContent=S.findings.length;
+  const map={running:'RUNNING · 分析中',completed:'COMPLETED · 已完成',partial_failed:'PARTIAL_FAILED · 部分失败',failed:'FAILED · 失败',idle:'IDLE'};
+  const b=$('stStatus');b.textContent=map[S.status]||S.status;b.className='badge '+S.status;
+  $('btnViewReport').disabled=!S.report;
+  $('tabReport').classList.toggle('disabled',!S.report);
+  $('tnF').textContent=S.findings.length?'('+S.findings.length+')':'';
+  $('tnR').textContent=S.report?'✓':'';
+  $('navSess').textContent=' · '+S.startedAt;
+}
+function renderRunStrip(){
+  const S=state.session;if(!S)return;
+  $('runStrip').innerHTML=S.selIds.map(id=>{
+    const c=catOf(id),r=S.runs[id];
+    return `<div class="runcell" id="rc-${id}" data-fail="${r.status==='failed'}">
+      <div class="rc-top"><span class="csq" style="background:${CAT_COLORS[id]||'var(--ink)'}"></span><b>${esc(c.zh)}</b>
+        <span style="font-size:9px;letter-spacing:.12em;color:var(--ink35)">${c.en.toUpperCase()}</span></div>
+      <div class="rc-status" id="rs-${id}"></div>
+      <div class="rc-bar"><i id="rb-${id}"></i></div>
+      <div class="rc-retry" id="rr-${id}"></div>
+    </div>`;
+  }).join('');
+  S.selIds.forEach(id=>{paintRunCell(id);});
+}
+function updateRunCell(cid,retrying){
+  paintRunCell(cid,retrying);
+}
+function paintRunCell(cid,retrying){
+  const S=state.session,r=S.runs[cid],c=catOf(cid);
+  const st=$('rs-'+cid),bar=$('rb-'+cid),rc=$('rc-'+cid);if(!st)return;
+  rc.classList.toggle('failed-ri',r.status==='failed');
+  bar.style.width=(r.progress*100).toFixed(0)+'%';
+  if(r.status==='pending'){st.textContent='等待中……';st.className='rc-status';}
+  else if(r.status==='running'){
+    st.textContent=(retrying?'重试中 · ':'')+'正在分析全文……';
+    st.className='rc-status run';
+  }
+  else if(r.status==='completed'){st.textContent=`完成 · ${r.count}`;st.className='rc-status ok';bar.style.width='100%';}
+  else{st.textContent='失败';st.className='rc-status fail';bar.style.width='100%';}
+  const rr=$('rr-'+cid);
+  if(r.status==='failed'){
+    rr.innerHTML=`<div style="font-size:10.5px;color:var(--red);line-height:1.6;margin-bottom:6px">${esc(r.error||'')}</div><button class="mini danger" data-rr="${cid}">↻ 重新运行该类别</button>`;
+    rr.querySelector('button').addEventListener('click',()=>rerunCategory(cid));
+  }else rr.innerHTML='';
+}
+
+function renderWorkspaceAll(){
+  updateTopStats(); renderRunStrip(); renderDoc(); renderFilters(); renderCards();
+  if(state.sideTab==='report') renderReport();
+  applySplit(); applyWidth(); applyLines();
+}
+/* ---------- 左侧文档 ---------- */
+function renderDoc(){
+  const S=state.session;if(!S){$('docBody').innerHTML='';return;}
+  const anchored=S.findings.filter(f=>f.anchorStatus==='anchored');
+  const html=S.blocks.map(b=>{
+    const mine=anchored.filter(f=>f.blockId===b.id).map(f=>({id:f.id,s:f.startOffset,e:f.endOffset}));
+    return blockHtml(b,mine);
+  }).join('');
+  $('docBody').innerHTML=html;
+  bindDocEvents();
+}
+function blockHtml(b,fs){
+  const pts=new Set([0,b.plain.length]);fs.forEach(f=>{pts.add(Math.max(0,Math.min(b.plain.length,f.s)));pts.add(Math.max(0,Math.min(b.plain.length,f.e)));});
+  const arr=[...pts].sort((x,y)=>x-y);
+  let inner='';
+  for(let i=0;i<arr.length-1;i++){
+    const a=arr[i],c=arr[i+1];if(c<=a)continue;
+    const ids=fs.filter(f=>f.s<=a&&f.e>=c).map(f=>f.id);
+    const txt=inlineMd(b.plain.slice(a,c));
+    if(!ids.length){inner+=txt;continue;}
+    const colors=[...new Set(ids.map(id=>{const f=state.session.findings.find(x=>x.id===id);return f?CAT_COLORS[f.categoryId]:'var(--ink)'}))];
+    inner+=`<span class="hl u${Math.min(3,ids.length)}" data-fids="${ids.join(',')}" style="--u1:${colors[0]||'var(--ink)'};--u2:${colors[1]||colors[0]||'var(--ink)'};--u3:${colors[2]||colors[1]||'var(--ink)'}">${txt}</span>`;
+  }
+  const cls='blk b-'+(b.type.startsWith('heading')?(b.type==='heading1'?'heading1':'heading2'):b.type);
+  const idTag=state.params.showLines?`<span class="bid">L${b.line}</span>`:'';
+  const tag={heading1:'h1',heading2:'h2',quote:'blockquote',code:'pre'}[b.type]||'p';
+  if(b.type==='list_item')return `<div class="${cls}">${idTag}${inner}</div>`;
+  return `<${tag} class="${cls}">${idTag}${inner}</${tag}>`;
+}
+function bindDocEvents(){
+  $('docBody').querySelectorAll('.hl').forEach(sp=>{
+    sp.addEventListener('click',e=>{
+      const ids=sp.dataset.fids.split(',');
+      if(ids.length===1){selectFinding(ids[0]);}
+      else{e.stopPropagation();showPop(sp,ids);}
+    });
+    sp.addEventListener('mouseenter',()=>{
+      sp.dataset.fids.split(',').forEach(id=>{const c=document.querySelector(`.card[data-id="${id}"]`);if(c)c.classList.add('hov');});
+    });
+    sp.addEventListener('mouseleave',()=>{
+      document.querySelectorAll('.card.hov').forEach(c=>c.classList.remove('hov'));
+    });
+  });
+}
+/* ---------- popover（同一段文本多个 Finding，§10.3）---------- */
+const pop=$('pop');
+function showPop(sp,ids){
+  const S=state.session;
+  pop.innerHTML=`<div class="pop-h">该文本对应 ${ids.length} 个 FINDING</div>`+ids.map(id=>{
+    const f=S.findings.find(x=>x.id===id);const c=catOf(f.categoryId);
+    return `<div class="pop-item" data-id="${id}"><span style="width:8px;height:8px;background:${CAT_COLORS[f.categoryId]};display:inline-block"></span><b style="flex:1">${esc(f.title)}</b><span class="sev ${f.sev}" style="font-size:9px">${SEV_ZH[f.sev]}</span></div>`;
+  }).join('');
+  const r=sp.getBoundingClientRect();
+  pop.style.left=Math.min(window.innerWidth-250,r.left)+'px';
+  pop.style.top=Math.min(window.innerHeight-r.height-8,Math.max(8,r.bottom+6))+'px';
+  pop.classList.add('show');
+  pop.querySelectorAll('.pop-item').forEach(it=>it.addEventListener('click',()=>{pop.classList.remove('show');selectFinding(it.dataset.id,'fromDoc');}));
+}
+document.addEventListener('click',e=>{if(!pop.contains(e.target))pop.classList.remove('show');});
+
+/* ---------- 右侧筛选 + 卡片 ---------- */
+function renderFilters(){
+  const S=state.session;if(!S)return;
+  const cats=[['all','全部'],...S.selIds.map(id=>[id,catOf(id).zh])];
+  const sevs=[['all','全部'],['high','严重'],['medium','建议修改'],['low','可优化']];
+  const cnt=sel=>S.findings.filter(f=>(state.filCat==='all'||f.categoryId===state.filCat)).filter(f=>sel==='all'||f.sev===sel).length;
+  $('filters').innerHTML=`
+    <div class="frow"><span class="microlabel">CATEGORY</span>${cats.map(([v,l])=>`<span class="fchip ${state.filCat===v?'on':''}" data-f="cat" data-v="${v}">${l}<span class="cnt">${cnt('all')&&v!=='all'?S.findings.filter(f=>f.categoryId===v).length:cnt('all')}</span></span>`).join('')}</div>
+    <div class="frow"><span class="microlabel">SEVERITY</span>${sevs.map(([v,l])=>`<span class="fchip ${state.filSev===v?'on':''}" data-f="sev" data-v="${v}">${l}<span class="cnt">${cnt(v)}</span></span>`).join('')}</div>`;
+  $('filters').querySelectorAll('.fchip').forEach(ch=>ch.addEventListener('click',()=>{
+    if(ch.dataset.f==='cat')state.filCat=ch.dataset.v;else state.filSev=ch.dataset.v;
+    renderFilters();renderCards();
+  }));
+}
+function visibleFindings(){
+  const S=state.session;if(!S)return[];
+  const order={high:0,medium:1,low:2};
+  return S.findings.filter(f=>(state.filCat==='all'||f.categoryId===state.filCat)&&(state.filSev==='all'||f.sev===state.filSev))
+    .sort((a,b)=>{
+      const ba=S.blocks.findIndex(x=>x.id===a.blockId),bb=S.blocks.findIndex(x=>x.id===b.blockId);
+      if(ba!==bb)return ba-bb;return (a.startOffset??1e9)-(b.startOffset??1e9);
+    });
+}
+function renderCards(){
+  const S=state.session,box=$('cards');
+  if(!S){box.innerHTML='';return;}
+  // 运行中的类别占位（Streaming 占位，§49 §50）
+  const running=S.selIds.filter(id=>S.runs[id].status==='running'||S.runs[id].status==='pending');
+  const list=visibleFindings();
+  let html='';
+  if(running.length&&state.sideTab==='findings'){
+    html+=running.map(id=>{const c=catOf(id),r=S.runs[id];
+      return `<div class="streaming-card"><b style="color:${CAT_COLORS[id]}">${esc(c.zh)}</b> — ${r.status==='pending'?'等待中':'正在分析全文'}<span class="dots"></span><div style="font-size:10px;margin-top:4px;color:var(--ink35)">Finding 将在结构完整并通过 Schema 校验后写入（§50）</div></div>`;
+    }).join('');
+  }
+  if(!list.length&&!running.length){
+    html+=`<div style="padding:34px 8px;font-size:13px;line-height:1.9;color:var(--ink50)">
+      ${S.status==='completed'||S.status==='partial_failed'
+        ?(state.filCat!=='all'
+          ?`本次 Review 未发现该类别下的明显问题。<br><span style="font-size:11px">AI Review 不能证明文本不存在问题（§48）。</span>`
+          :'当前筛选条件下没有匹配的批注。')
+        :'正在等待分析结果……'}</div>`;
+  }
+  html+=list.map(f=>{
+    const c=catOf(f.categoryId);
+    return `<div class="card ${f.anchorStatus==='unanchored'?'unanchored':''} ${state.selFid===f.id?'sel':''}" data-id="${f.id}">
+      <div class="card-head">
+        <span class="cat-tag" style="--cc:${CAT_COLORS[f.categoryId]}"><span class="csq"></span>${esc(c.zh)}</span>
+        <span class="sev ${f.sev}">${SEV_ZH[f.sev]}</span>
+        ${f.anchorStatus==='unanchored'?'<span class="unb">未定位 UNANCHORED</span>':''}
+        <span class="bidref">${f.anchorStatus==='unanchored'?'未定位 · 无行号':'L'+f.line+' · #'+f.hash}</span>
+      </div>
+      <h4>${esc(f.title)}</h4>
+      <div class="quote" style="--cc:${CAT_COLORS[f.categoryId]}">${esc(f.quote)}</div>
+      <div class="fsec"><div class="fl">问题 PROBLEM</div><p>${esc(f.problem)}</p></div>
+      <div class="fsec"><div class="fl">原因 REASON</div><p>${esc(f.reason)}</p></div>
+      <div class="fsec"><div class="fl">建议 SUGGESTION</div><p>${esc(f.suggestion)}</p></div>
+    </div>`;
+  }).join('');
+  box.innerHTML=html;
+  box.querySelectorAll('.card').forEach(cd=>cd.addEventListener('click',()=>selectFinding(cd.dataset.id,'fromCard')));
+}
+function paneScrollTo(pane,el,where){
+  // 只滚动指定面板内部，绝不滚动页面（评审意见：点击高亮时原文必须保持原位）
+  if(!pane||!el)return;
+  const pr=pane.getBoundingClientRect(),er=el.getBoundingClientRect();
+  let top;
+  if(where==='top')top=pane.scrollTop+er.top-pr.top-10;
+  else top=pane.scrollTop+er.top-pr.top-(pane.clientHeight-er.height)/2;
+  pane.scrollTo({top:Math.max(0,top),behavior:'smooth'});
+}
+function selectFinding(fid,mode){
+  mode=mode||'fromDoc';
+  if(state.sideTab!=='findings'){state.sideTab='findings';syncSideTabs();}
+  state.selFid=fid;
+  document.querySelectorAll('.card').forEach(c=>c.classList.toggle('sel',c.dataset.id===fid));
+  const S=state.session,f=S.findings.find(x=>x.id===fid);if(!f)return;
+  document.querySelectorAll('#docBody .hl.sel').forEach(s=>s.classList.remove('sel'));
+  let firstSpan=null;
+  document.querySelectorAll('#docBody .hl').forEach(s=>{
+    if(s.dataset.fids.split(',').includes(fid)){s.classList.add('sel');if(!firstSpan)firstSpan=s;}
+  });
+  const card=document.querySelector(`.card[data-id="${fid}"]`);
+  // 点击原文高亮：选中卡片在右栏直接置顶显示，左栏与页面纹丝不动
+  if((mode==='fromDoc'||mode==='fromReport')&&card)paneScrollTo($('sidePane'),card,'top');
+  // 从右侧卡片 / 报告发起时：左栏内部平滑滚动定位（同样不影响页面）
+  if((mode==='fromCard'||mode==='fromReport')&&firstSpan)paneScrollTo($('docPane'),firstSpan,'center');
+}
+
+/* ---------- Report（§39–42）---------- */
+function renderReport(){
+  const S=state.session,R=S&&S.report;
+  const box=$('reportView');
+  if(!R){box.innerHTML='<div style="padding:30px 6px;font-size:12.5px;color:var(--ink50)">报告尚未生成 · 所有选中类别完成后自动生成（§39）。</div>';return;}
+  const fs=S.findings;
+  const prio=R.priorityIds.map(id=>fs.find(f=>f.id===id)).filter(Boolean);
+  box.innerHTML=`
+    ${R.failedIds.length?`<div class="rp-failbanner">部分类别失败：${R.failedIds.map(id=>catOf(id).zh).join('、')} — 报告基于已成功类别生成，并明确列出失败项（§39）。</div>`:''}
+    <div class="rp-sec"><h3><span class="n">41.1</span>总体摘要 SUMMARY</h3><p class="sum">${esc(R.summary)}</p></div>
+    <div class="rp-sec"><h3><span class="n">41.2</span>优先问题 PRIORITY · ${prio.length}</h3>
+      ${prio.map((f,i)=>`<div class="prio-item" data-id="${f.id}"><span class="pn">${String(i+1).padStart(2,'0')}</span><b>${esc(f.title)}</b><span class="meta">${catOf(f.categoryId).zh} · ${SEV_ZH[f.sev]} · ${f.line!=null?'L'+f.line:'未定位'}</span></div>`).join('')}
+    </div>
+    <div class="rp-sec"><h3><span class="n">41.3</span>CATEGORY SUMMARY</h3>
+      <table class="catsum"><tr><th>类别</th><th>严重</th><th>建议修改</th><th>可优化</th><th>小计</th><th>结论</th></tr>
+      ${R.categorySummaries.map(cs=>{
+        const c=catOf(cs.categoryId),tot=cs.high+cs.medium+cs.low;
+        return cs.failed
+          ?`<tr class="failed-row"><td><span class="csq" style="background:${CAT_COLORS[cs.categoryId]}"></span>${esc(c.zh)}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>FEHLGESCHLAGEN 失败</td></tr>`
+          :`<tr><td><span class="csq" style="background:${CAT_COLORS[cs.categoryId]}"></span>${esc(c.zh)}</td><td>${cs.high}</td><td>${cs.medium}</td><td>${cs.low}</td><td>${tot}</td><td style="font-family:var(--sans);font-size:11px;color:var(--ink50)">${esc(cs.summary)}</td></tr>`;
+      }).join('')}</table>
+    </div>
+    <div class="rp-sec"><h3><span class="n">41.4</span>完整 FINDINGS · ${fs.length}</h3>
+      ${fs.map(f=>`<div class="prio-item" data-id="${f.id}"><span class="pn" style="color:var(--ink35)">·</span><b>${esc(f.title)}</b><span class="meta">${catOf(f.categoryId).zh} · ${SEV_ZH[f.sev]} · ${f.line!=null?'L'+f.line:'未定位'}</span></div>`).join('')}
+      <div style="font-size:10.5px;color:var(--ink50);margin-top:10px">点击任意条目 → 回到对应原文与右侧批注（§41.4）。</div>
+    </div>`;
+  box.querySelectorAll('.prio-item').forEach(it=>it.addEventListener('click',()=>{
+    selectFinding(it.dataset.id,'fromReport');
+  }));
+}
+document.querySelectorAll('.side-tab').forEach(t=>t.addEventListener('click',()=>{
+  if(t.classList.contains('disabled')){toast('报告将在所有类别完成后生成（§39）');return;}
+  state.sideTab=t.dataset.tab;syncSideTabs();
+}));
+function syncSideTabs(){
+  document.querySelectorAll('.side-tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===state.sideTab));
+  $('cards').style.display=state.sideTab==='findings'?'':'none';
+  $('filters').style.display=state.sideTab==='findings'?'':'none';
+  $('reportView').style.display=state.sideTab==='report'?'block':'none';
+  if(state.sideTab==='report')renderReport();
+}
+
+/* ---------- 顶栏按钮 ---------- */
+$('btnViewReport').addEventListener('click',()=>{state.sideTab='report';syncSideTabs();$('sidePane').scrollTop=0;});
+$('btnRerunAll').addEventListener('click',()=>{go('new');toast('已返回新建页 · 原文已保留，可调整类别后重新分析');});
+$('btnGoSettings').addEventListener('click',()=>go('settings'));
+$('btnLog').addEventListener('click',()=>$('logBar').classList.toggle('open'));
+$('btnClearLog').addEventListener('click',()=>{state.logs=[];renderLog();});
+
+/* ---------- 分栏拖动（§9.1）---------- */
+(function(){
+  const div=$('divider'),pane=$('docPane');let drag=false;
+  div.addEventListener('pointerdown',e=>{drag=true;div.setPointerCapture(e.pointerId);document.body.style.userSelect='none';});
+  div.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    const main=$('wsMain').getBoundingClientRect();
+    let pct=((e.clientX-main.left)/main.width*100);
+    pct=Math.max(28,Math.min(72,pct));
+    state.params.split=Math.round(pct);pane.style.flexBasis=pct+'%';
+  });
+  div.addEventListener('pointerup',()=>{drag=false;document.body.style.userSelect='';saveSoon();toast('分栏宽度已保存（§9.1）');});
+})();
+function applySplit(){$('docPane').style.flexBasis=state.params.split+'%';}
+function applyWidth(){
+  const w={narrow:560,normal:720,wide:880}[state.params.readWidth]||720;
+  $('docBody').style.maxWidth=w+'px';
+}
+function applyLines(){$('docBody').classList.toggle('show-lines',state.params.showLines);}
+
+/* ================================================================
+   7. Settings 页
+   ================================================================ */
+function renderModels(){
+  const box=$('modelList');
+  box.innerHTML=state.models.map(m=>`
+    <div class="model-row ${m.def?'def-model':''}" data-id="${m.id}">
+      <div class="mr-top">
+        <label class="ctl" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink50)"><input type="radio" name="defmodel" ${m.def?'checked':''}> 默认模型</label>
+        <span class="microlabel" style="margin-left:8px">PROVIDER / MODEL</span>
+        <button class="mini" data-act="test">测试连接</button>
+        <select class="testsim mini" style="width:auto;padding:3px 6px;font-size:10px" title="演示：模拟测试结果">
+          <option value="ok">模拟:成功</option><option value="auth">模拟:401</option><option value="model">模拟:404</option>
+          <option value="timeout">模拟:超时</option><option value="net">模拟:无法连接</option>
+        </select>
+        <button class="mini danger" data-act="del">删除</button>
+      </div>
+      <div class="mr-grid">
+        <div class="fg"><span class="microlabel">PROVIDER</span><select data-k="provider">${['OpenAI','Anthropic','Google','OpenAI-compatible'].map(p=>`<option ${m.provider===p?'selected':''}>${p}</option>`).join('')}</select></div>
+        <div class="fg g2"><span class="microlabel">MODEL</span><input type="text" data-k="model" value="${esc(m.model)}"></div>
+        <div class="fg g2"><span class="microlabel">API KEY（不会出现在日志中）</span><input type="password" data-k="apiKey" value="${esc(m.apiKey)}"></div>
+        <div class="fg g2"><span class="microlabel">BASE URL</span><input type="text" data-k="baseUrl" value="${esc(m.baseUrl||'')}"></div>
+        <div class="fg"><span class="microlabel">TEMP</span><input type="number" step="0.1" data-k="temperature" value="${m.temperature??''}"></div>
+        <div class="fg"><span class="microlabel">MAX TOKENS</span><input type="number" data-k="maxTokens" value="${m.maxTokens??''}"></div>
+      </div>
+      <div class="test-line" data-tl></div>
+    </div>`).join('');
+  box.querySelectorAll('.model-row').forEach(row=>{
+    const m=state.models.find(x=>x.id===row.dataset.id);
+    row.querySelectorAll('[data-k]').forEach(inp=>inp.addEventListener('change',()=>{
+      m[inp.dataset.k]=inp.dataset.k==='temperature'||inp.dataset.k==='maxTokens'?(inp.value===''?null:+inp.value):inp.value;
+      saveSoon();
+    }));
+    row.querySelector('input[type=radio]').addEventListener('change',()=>{
+      state.models.forEach(x=>x.def=false);m.def=true;renderModels();save();
+    });
+    row.querySelector('[data-act=del]').addEventListener('click',()=>{
+      state.models=state.models.filter(x=>x.id!==m.id);
+      if(!state.models.length||!state.models.some(x=>x.def)){if(state.models[0])state.models[0].def=true;}
+      renderModels();save();toast('模型配置已删除');
+    });
+    row.querySelector('[data-act=test]').addEventListener('click',()=>{
+      const sim=row.querySelector('.testsim').value,tl=row.querySelector('[data-tl]');
+      tl.className='test-line';tl.textContent='测试中……';
+      setTimeout(()=>{
+        if(sim==='ok'){tl.className='test-line ok';tl.textContent=`✓ 连接成功 · ${esc(m.model)} 响应 ${180+Math.floor(Math.random()*240)}ms · Provider ${esc(m.provider)}`;}
+        else{
+          const msgs={auth:'✗ 401 API Key 无效 — 请检查 Key 是否正确。下一步：到 Provider 控制台确认 Key（错误信息已隐藏 Key 内容，§23）。',
+            model:'✗ 404 模型不存在 — 请检查模型名称。下一步：确认该 Provider 的模型列表中的准确名称。',
+            timeout:'✗ 请求超时 — 下一步：检查网络或 Base URL 是否可达；可稍后重试。',
+            net:'✗ Base URL 无法连接 — 下一步：检查 URL 拼写、代理与防火墙设置。'};
+          tl.className='test-line bad';tl.textContent=msgs[sim];
+        }
+      },600+Math.random()*500);
+    });
+  });
+}
+$('btnAddModel').addEventListener('click',()=>{
+  state.models.push({id:'m'+Date.now(),provider:'OpenAI',model:'gpt-4o',apiKey:'',baseUrl:'',temperature:0.2,maxTokens:4096,def:!state.models.length});
+  renderModels();save();
+});
+function renderCatSettings(){
+  const box=$('catSetList');
+  const cats=state.cats.slice().sort((a,b)=>a.order-b.order);
+  box.innerHTML=cats.map(c=>`
+    <div class="cat-set-row" data-id="${c.id}">
+      <div class="csr-top">
+        <span class="csq" style="background:${CAT_COLORS[c.id]||'var(--ink)'}"></span>
+        <b>${esc(c.zh)}</b><span class="en">${esc(c.en)}</span>        <label class="ctl"><input type="checkbox" data-k="enabled" ${c.enabled?'checked':''}> 启用</label>
+        <label class="ctl"><input type="checkbox" data-k="def" ${c.def?'checked':''}> 默认选中</label>
+        <span class="spacer"></span>
+        <button class="mini" data-act="up">↑</button><button class="mini" data-act="down">↓</button>
+        <button class="mini" data-act="dup">复制</button><button class="mini danger" data-act="del">删除</button>
+        <button class="mini" data-act="expand">Prompt ▾</button>
+      </div>
+      <div class="csr-body">
+        <div class="fg" style="margin-bottom:10px"><span class="microlabel">名称 / NAME</span>
+          <div style="display:flex;gap:10px"><input type="text" data-k="zh" value="${esc(c.zh)}" style="max-width:180px"><input type="text" data-k="en" value="${esc(c.en)}" style="max-width:180px"></div></div>
+        <div class="fg" style="margin-bottom:10px"><span class="microlabel">描述 DESCRIPTION</span><input type="text" data-k="desc" value="${esc(c.desc||'')}"></div>
+        <span class="microlabel">PROMPT（该类别独立使用 · 修改不影响其他类别）</span>
+        <textarea data-k="prompt">${esc(c.prompt)}</textarea>
+        <div class="ctx-chips">可用上下文：<span>{{document}}</span><span>{{blocks}}</span><span>{{category}}</span><span>{{output_schema}}</span></div>
+        <div class="ctx-note">Prompt 组成 = System Instruction + Category Prompt + Output Schema + Document Context（§18）。在 Prompt 中说明该类别的 Severity 判断规则（§13）。修改后回到工作台仅重跑该类别即可验证（§6.3）。</div>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('.cat-set-row').forEach(row=>{
+    const c=state.cats.find(x=>x.id===row.dataset.id);
+    row.querySelectorAll('[data-k]').forEach(inp=>inp.addEventListener('change',()=>{
+      const k=inp.dataset.k;
+      if(k==='enabled'||k==='def')c[k]=inp.checked;else c[k]=inp.value;
+      if(k==='enabled')renderNewCats();
+      saveSoon();
+    }));
+    row.querySelectorAll('button[data-act]').forEach(btn=>btn.addEventListener('click',()=>{
+      const act=btn.dataset.act;
+      if(act==='expand')row.classList.toggle('open');
+      if(act==='del'){
+        if(['logic','thesis','argument','rhetoric','structure','clarity'].includes(c.id)&&!confirm('删除内置类别「'+c.zh+'」？'))return;
+        state.cats=state.cats.filter(x=>x.id!==c.id);state.checked.delete(c.id);
+        renderCatSettings();renderNewCats();save();
+      }
+      if(act==='dup'){
+        const nid=c.id+'_copy'+Date.now()%1000;
+        state.cats.push({...JSON.parse(JSON.stringify(c)),id:nid,zh:c.zh+' 副本',order:state.cats.length+1});
+        renderCatSettings();save();toast('类别已复制（§15）');
+      }
+      if(act==='up'||act==='down'){
+        const sorted=state.cats.slice().sort((a,b)=>a.order-b.order);
+        const i=sorted.indexOf(c),j=act==='up'?i-1:i+1;
+        if(j<0||j>=sorted.length)return;
+        [sorted[i],sorted[j]]=[sorted[j],sorted[i]];
+        sorted.forEach((x,k)=>x.order=k+1);
+        renderCatSettings();renderNewCats();save();
+      }
+    }));
+  });
+}
+$('btnAddCat').addEventListener('click',()=>{
+  const id='custom'+Date.now()%10000;
+  state.cats.push({id,zh:'新类别',en:'Custom',enabled:true,def:false,order:state.cats.length+1,desc:'',prompt:''});
+  renderCatSettings();save();
+});
+
+/* ================================================================
+   8. 参数实验室
+   ================================================================ */
+const PM_SCHEMA=[
+ {g:'布局 LAYOUT · 即时生效',rows:[
+   {k:'split',l:'左右分栏比例',type:'range',min:30,max:70,step:1,unit:'%',live:true},
+   {k:'readWidth',l:'原文阅读宽度',type:'select',opts:[['narrow','窄 560px'],['normal','标准 720px'],['wide','宽 880px']],live:true},
+   {k:'showLines',l:'显示行号',type:'toggle',live:true},
+ ]},
+ {g:'执行 EXECUTION · 下次审阅生效',rows:[
+   {k:'concurrency',l:'并发上限',type:'range',min:1,max:6,step:1,unit:' 路'},
+   {k:'speed',l:'演示速度',type:'range',min:0.5,max:8,step:0.5,unit:'×'},
+   {k:'baseDur',l:'每类基础耗时',type:'range',min:1.5,max:8,step:0.5,unit:'s'},
+   {k:'retries',l:'网络错误自动重试',type:'range',min:0,max:3,step:1,unit:' 次'},
+ ]},
+ {g:'失败模拟 FAILURE · 演示 §27 §52',rows:[
+   {k:'failMode',l:'失败模式',type:'select',opts:[['none','无（全部成功）'],['random20','随机 20%'],['random50','随机 50%'],['forced','指定类别失败']]},
+   {k:'forcedCat',l:'指定失败类别',type:'select',optsDynamic:'cats'},
+ ]},
+ {g:'长文 LIMITS · PRD §71 待定',rows:[
+   {k:'maxLen',l:'最大文稿长度',type:'select',opts:[[10000,'1 万字'],[30000,'3 万字'],[50000,'5 万字']],live:true},
+ ]},
+ {g:'报告 REPORT · §41',rows:[
+   {k:'prioCount',l:'优先问题数量',type:'range',min:3,max:10,step:1,unit:' 条'},
+   {k:'reportDelay',l:'生成延迟',type:'range',min:0.5,max:3,step:0.5,unit:'s'},
+ ]},
+ {g:'数据与演示 DATA · §53–54',rows:[
+   {k:'restore',l:'刷新后恢复最近 Review',type:'toggle'},
+   {k:'simDup',l:'模拟重复 Finding（演示去重）',type:'toggle'},
+   {k:'simUnanchored',l:'模拟未定位 Finding',type:'toggle'},
+   {k:'simWrongOffset',l:'模拟行号偏差（演示内容优先定位）',type:'toggle'},
+ ]},
+];
+function renderParams(){
+  const box=$('pmBody');
+  box.innerHTML=PM_SCHEMA.map(gr=>`
+    <div class="pm-group"><h4>${gr.g}</h4>
+    ${gr.rows.map(r=>{
+      const v=state.params[r.k];
+      if(r.type==='range')return `<div class="pm-row"><label>${r.l}</label><input type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${v}" data-p="${r.k}"><span class="pv">${v}${r.unit||''}</span></div>`;
+      if(r.type==='select'){
+        const opts=r.optsDynamic==='cats'
+          ?state.cats.filter(c=>c.enabled).map(c=>[c.id,c.zh+'（失败）'])
+          :r.opts;
+        return `<div class="pm-row"><label>${r.l}</label><select data-p="${r.k}">${opts.map(([ov,ol])=>`<option value="${ov}" ${String(v)===String(ov)?'selected':''}>${ol}</option>`).join('')}</select></div>`;
+      }
+      return `<div class="pm-row"><label>${r.l}</label><span class="tg"><input type="checkbox" data-p="${r.k}" ${v?'checked':''}></span></div>`;
+    }).join('')}</div>`).join('')
+    +`<div class="pm-group"><h4>危险区</h4><button class="danger" id="pmWipe" style="width:100%">清除已保存的全部数据（参数 / 设置 / 会话）</button></div>`;
+  box.querySelectorAll('[data-p]').forEach(inp=>inp.addEventListener('input',()=>{
+    const k=inp.dataset.p,sch=PM_SCHEMA.flatMap(g=>g.rows).find(r=>r.k===k);
+    state.params[k]=inp.type==='checkbox'?inp.checked:(inp.type==='range'?parseFloat(inp.value):isNaN(+inp.value)?inp.value:+inp.value);
+    if(inp.type==='range'){const pv=inp.parentElement.querySelector('.pv');if(pv)pv.textContent=state.params[k]+(sch.unit||'');}
+    if(sch&&sch.live)applyParam(k);
+    if(k==='maxLen'){$('docInput').maxLength=state.params.maxLen;updateCharCount();}
+    saveSoon();
+  }));
+  const wipe=$('pmWipe');if(wipe)wipe.addEventListener('click',()=>{
+    localStorage.removeItem(KEY);location.reload();
+  });
+}
+function applyParam(k){
+  if(k==='split')applySplit();
+  if(k==='readWidth')applyWidth();
+  if(k==='showLines')applyLines();
+}
+const btnP=$('btnParams');
+btnP.addEventListener('click',()=>{$('pmDrawer').classList.add('show');$('pmOverlay').classList.add('show');});
+$('btnCloseParams').addEventListener('click',closeParams);
+$('pmOverlay').addEventListener('click',closeParams);
+function closeParams(){$('pmDrawer').classList.remove('show');$('pmOverlay').classList.remove('show');}
+
+/* ================================================================
+   9. 持久化（§53–54）
+   ================================================================ */
+const KEY='argusProtoV1';
+let saveT=null;
+function saveSoon(){clearTimeout(saveT);saveT=setTimeout(save,400);}
+function save(){
+  if(!state.params.restore)return;
+  try{
+    const snap={params:state.params,cats:state.cats,models:state.models.map(m=>({...m})),checked:[...state.checked],
+      logs:state.logs.slice(-60),
+      session:state.session?{
+        text:state.session.text,selIds:state.session.selIds,status:state.session.status,startedAt:state.session.startedAt,
+        report:state.session.report,
+        findings:state.session.findings,
+        runs:Object.fromEntries(Object.entries(state.session.runs).map(([k,r])=>[k,{status:r.status==='running'?'completed':r.status==='pending'?'completed':r.status,progress:1,count:r.count,error:r.error,retries:r.retries}])),
+      }:null};
+    localStorage.setItem(KEY,JSON.stringify(snap));
+  }catch(e){}
+}
+function tryRestore(){
+  let snap=null;
+  try{snap=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+  if(!snap)return false;
+  state.params={...DEFAULT_PARAMS,...snap.params};
+  if(snap.cats&&snap.cats.length)state.cats=snap.cats;
+  if(snap.models)state.models=snap.models;
+  if(snap.checked)state.checked=new Set(snap.checked.filter(id=>catOf(id)));
+  if(snap.logs)state.logs=snap.logs;
+  if(snap.session&&snap.session.findings&&snap.session.findings.length){
+    const s=snap.session;
+    state.session={text:s.text,blocks:parseBlocks(s.text),selIds:s.selIds,runs:s.runs,findings:s.findings,status:s.status,report:s.report,startedAt:s.startedAt};
+    state.restored=true;
+    return true;
+  }
+  return false;
+}
+$('btnClearRestore').addEventListener('click',()=>{
+  state.session=null;state.restored=false;$('restoreBanner').style.display='none';
+  localStorage.removeItem(KEY);
+  go('new');toast('已清除会话 · 可重新开始审阅');
+});
+
+/* ================================================================
+   10. init
+   ================================================================ */
+function init(){
+  const restored=state.params.restore&&tryRestore();
+  if(restored){
+    $('docInput').value=state.session.text;
+    $('restoreBanner').style.display='flex';
+    state.page='ws';
+    renderWorkspaceAll();syncSideTabs();
+    log('恢复','从本地恢复最近一次 Review（演示 §54 · 非项目管理）');
+  }else{
+    defaultChecks();
+  }
+  $('docInput').maxLength=state.params.maxLen;
+  renderNewCats();renderModels();renderCatSettings();renderParams();
+  updateCharCount();renderLog();syncSideTabs();updateTopStats();
+  go(restored?'ws':'new');
+}
+init();
+</script>
+</body>
+</html>

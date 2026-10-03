@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARGUS — 模块关系与数据流 · 01</title>
+<style>
+  :root{
+    --paper:#f5f3ee; --paper2:#eceae3; --ink:#17150f; --ink60:rgba(23,21,15,.6);
+    --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14); --red:#e2231a;
+    --hair:1px solid var(--ink15);
+    --sans:"Helvetica Neue",Helvetica,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    --mono:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{background:var(--paper)}
+  body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--red);color:#fff}
+
+  .microlabel{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink60);font-weight:600}
+
+  /* ---------- masthead ---------- */
+  header{border-bottom:6px solid var(--ink);padding:26px 40px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:24px}
+  .mast-left{display:flex;gap:22px;align-items:flex-start}
+  .mast-no{font-size:44px;font-weight:700;line-height:.9;letter-spacing:-.02em}
+  .mast-no span{color:var(--red)}
+  h1{font-size:25px;font-weight:700;letter-spacing:-.01em;line-height:1.15}
+  .mast-sub{margin-top:6px;font-size:12.5px;color:var(--ink60);max-width:640px;line-height:1.6}
+  .mast-right{text-align:right;font-size:11px;color:var(--ink60);line-height:1.9;padding-bottom:18px;flex-shrink:0}
+  .mast-right a{color:var(--red);text-decoration:none;border-bottom:1px solid var(--red)}
+  .mast-right a:hover{background:var(--red);color:#fff}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{display:flex;flex-wrap:wrap;gap:0;border-bottom:var(--hair);align-items:stretch}
+  .tb-block{display:flex;align-items:center;gap:10px;padding:12px 20px;border-right:var(--hair)}
+  .tb-block.grow{flex:1;border-right:none;justify-content:flex-end;gap:18px;flex-wrap:wrap}
+  button{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.06em;background:var(--paper);
+    border:1.5px solid var(--ink);color:var(--ink);padding:7px 16px;cursor:pointer;transition:background .12s,color .12s}
+  button:hover{background:var(--ink);color:var(--paper)}
+  button.primary{background:var(--ink);color:var(--paper)}
+  button.primary:hover{background:var(--red);border-color:var(--red)}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button:disabled:hover{background:var(--paper);color:var(--ink)}
+  button.sq{padding:7px 10px}
+  select{font-family:var(--sans);font-size:12px;border:1.5px solid var(--ink);background:var(--paper);padding:6px 8px;cursor:pointer}
+  .stepcount{font-family:var(--mono);font-size:13px;font-weight:600;min-width:86px;text-align:center}
+  .togglebtn{display:flex;align-items:center;gap:7px;border:1.5px solid var(--ink35);color:var(--ink60);background:transparent}
+  .togglebtn .box{width:10px;height:10px;border:1.5px solid currentColor;display:inline-block}
+  .togglebtn.on{border-color:var(--red);color:var(--red)}
+  .togglebtn.on .box{background:var(--red);border-color:var(--red)}
+  .togglebtn:hover{background:transparent;color:var(--ink)}
+  .togglebtn.on:hover{color:var(--red)}
+
+  /* ---------- step card ---------- */
+  .stepcard{display:none;border-bottom:var(--hair);padding:16px 40px;gap:26px;align-items:flex-start;background:var(--paper2)}
+  .stepcard.show{display:flex}
+  .stepcard .sc-no{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--red);line-height:1;min-width:78px}
+  .stepcard .sc-title{font-size:16px;font-weight:700;margin-bottom:5px}
+  .stepcard .sc-desc{font-size:13px;line-height:1.7;color:var(--ink);max-width:880px}
+  .stepcard .sc-hint{font-size:11px;color:var(--ink60);margin-top:6px;font-family:var(--mono)}
+
+  /* ---------- layout ---------- */
+  .main{display:grid;grid-template-columns:minmax(0,1fr) 400px;align-items:start}
+  @media(max-width:1180px){.main{grid-template-columns:1fr}}
+  .stage-wrap{border-right:var(--hair);overflow-x:auto}
+  .stage-wrap svg{display:block;width:100%;min-width:1050px;height:auto}
+
+  /* ---------- svg ---------- */
+  .colhead{font-size:11px;font-weight:700;letter-spacing:.16em;fill:var(--ink60)}
+  .colhead tspan{fill:var(--red)}
+  .gridline{stroke:var(--ink15);stroke-width:1}
+  .node{cursor:pointer}
+  .node .n-rect{fill:#fdfcf9;stroke:var(--ink);stroke-width:1.6;transition:stroke .12s}
+  .node .n-no{font-family:var(--mono);font-size:11px;font-weight:700;fill:var(--red)}
+  .node .n-zh{font-size:14.5px;font-weight:700;fill:var(--ink)}
+  .node .n-en{font-size:9px;letter-spacing:.14em;fill:var(--ink60);font-weight:600}
+  .node .n-sub{font-size:10px;fill:var(--ink60)}
+  .node:hover .n-rect{stroke-width:2.6}
+  .node.sel .n-rect{stroke:var(--red);stroke-width:3}
+  .node.hl .n-rect{stroke:var(--red);stroke-width:3;stroke-dasharray:0}
+  .node.ext .n-rect{stroke-dasharray:6 4;fill:var(--paper2)}
+  .node.wide .n-rect{fill:#faf9f5}
+  .node.dim{opacity:.18}
+  .edge{transition:opacity .15s}
+  .edge path{fill:none;stroke:var(--ink);stroke-width:1.5}
+  .edge.dep path{stroke:var(--ink35);stroke-dasharray:5 4;stroke-width:1.3}
+  .edge.err path{stroke:var(--red);stroke-dasharray:5 4;stroke-width:1.5}
+  .edge .lbl{font-size:10px;fill:var(--ink60);paint-order:stroke;stroke:var(--paper);stroke-width:4px;font-weight:500}
+  .edge.dep .lbl{fill:var(--ink35)}
+  .edge.err .lbl{fill:var(--red);font-weight:600}
+  .edge .num{font-family:var(--mono);font-size:9px;font-weight:700;fill:#fff}
+  .edge:hover path{stroke-width:3}
+  .edge.on path{stroke:var(--red);stroke-width:3.2}
+  .edge.on .lbl{fill:var(--red);font-weight:700}
+  .edge.dim{opacity:.14}
+  .anno{font-size:10px;fill:var(--red);font-weight:500;paint-order:stroke;stroke:var(--paper);stroke-width:4px}
+  .anno.g{fill:var(--ink60)}
+  .chip{font-family:var(--mono);font-size:9.5px;fill:var(--ink60)}
+  .lane{font-family:var(--mono);font-size:9.5px;fill:var(--ink)}
+  svg.playing .node:not(.on):not(.keep){opacity:.16}
+  svg.playing .edge:not(.on){opacity:.1}
+  svg.playing .anno{opacity:.15}
+  svg.playing .edge.on.err path,svg.playing .edge.on.dep path{stroke:var(--red)}
+
+  /* ---------- aside ---------- */
+  aside{position:sticky;top:0;max-height:calc(100vh - 0px);overflow-y:auto;background:var(--paper)}
+  .tabs{display:flex;border-bottom:var(--hair)}
+  .tab{flex:1;padding:13px 0;text-align:center;font-size:11px;font-weight:700;letter-spacing:.14em;cursor:pointer;
+    color:var(--ink60);border-bottom:3px solid transparent;text-transform:uppercase}
+  .tab.on{color:var(--ink);border-bottom-color:var(--red)}
+  .idx-group{padding:14px 24px 6px}
+  .idx-group .g-title{font-size:10px;letter-spacing:.16em;color:var(--ink60);font-weight:700;padding-bottom:8px;border-bottom:var(--hair);margin-bottom:6px;text-transform:uppercase}
+  .idx-item{display:flex;gap:10px;padding:7px 4px;cursor:pointer;font-size:13px;align-items:baseline}
+  .idx-item .no{font-family:var(--mono);font-size:10px;color:var(--red);font-weight:700;min-width:20px}
+  .idx-item .en{font-size:9px;color:var(--ink60);letter-spacing:.1em;margin-left:auto;text-transform:uppercase}
+  .idx-item:hover{background:var(--paper2)}
+  .idx-item.sel{background:var(--ink);color:var(--paper)}
+  .idx-item.sel .en{color:rgba(245,243,238,.6)}
+
+  .detail{border-top:6px solid var(--ink);padding:20px 24px 28px;display:none}
+  .detail.show{display:block}
+  .d-head{display:flex;align-items:baseline;gap:12px;margin-bottom:2px}
+  .d-no{font-family:var(--mono);font-size:22px;color:var(--red);font-weight:700}
+  .d-zh{font-size:19px;font-weight:700}
+  .d-en{font-size:10px;letter-spacing:.16em;color:var(--ink60);text-transform:uppercase;margin-bottom:12px}
+  .d-sec{margin-top:14px}
+  .d-sec h4{font-size:10px;letter-spacing:.16em;color:var(--ink60);font-weight:700;border-bottom:var(--hair);padding-bottom:5px;margin-bottom:7px;text-transform:uppercase}
+  .d-sec ul{list-style:none}
+  .d-sec li{font-size:12.5px;line-height:1.65;padding:3px 0 3px 14px;position:relative}
+  .d-sec li::before{content:"";position:absolute;left:0;top:11px;width:6px;height:2px;background:var(--red)}
+  .d-sec.d-err li::before{background:var(--red)}
+  .d-sec.d-err li{color:var(--red)}
+  .d-sec a.nl{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ink35);cursor:pointer}
+  .d-sec a.nl:hover{border-color:var(--red);color:var(--red)}
+  .d-prd{font-family:var(--mono);font-size:10.5px;color:var(--ink60)}
+
+  .objlist{padding:10px 24px 30px;display:none}
+  .objlist.show{display:block}
+  .obj{border:var(--hair);margin-top:14px;background:#fdfcf9}
+  .obj h5{font-family:var(--mono);font-size:12px;padding:10px 14px;border-bottom:var(--hair);display:flex;justify-content:space-between;cursor:pointer}
+  .obj h5 .prd{font-size:9px;color:var(--ink60)}
+  .obj pre{font-family:var(--mono);font-size:10.5px;line-height:1.65;padding:12px 14px;white-space:pre;overflow-x:auto;color:var(--ink)}
+  .obj.closed pre{display:none}
+
+  /* ---------- open params footer ---------- */
+  .openparams{border-top:6px solid var(--ink);background:var(--ink);color:var(--paper)}
+  .op-head{display:flex;justify-content:space-between;align-items:center;padding:16px 40px 0}
+  .op-head .microlabel{color:rgba(245,243,238,.55)}
+  .op-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(245,243,238,.18);margin-top:14px}
+  @media(max-width:1000px){.op-grid{grid-template-columns:repeat(2,1fr)}}
+  .op-item{background:var(--ink);padding:18px 24px 22px;cursor:pointer;transition:background .12s}
+  .op-item:hover{background:#26231a}
+  .op-item.active{background:var(--red)}
+  .op-item .op-q{color:var(--red);font-weight:700;font-size:15px;margin-right:6px}
+  .op-item.active .op-q{color:#fff}
+  .op-item h6{font-size:13.5px;font-weight:700;color:var(--paper);display:inline}
+  .op-item .op-opts{font-family:var(--mono);font-size:10px;color:rgba(245,243,238,.55);margin-top:8px;line-height:1.7}
+  .op-item .op-imp{font-size:11px;color:rgba(245,243,238,.75);margin-top:6px;line-height:1.6}
+  footer.page{padding:14px 40px;font-size:10.5px;color:var(--ink60);display:flex;justify-content:space-between;border-top:var(--hair)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mast-left">
+    <div class="mast-no">01<span>/</span>02</div>
+    <div>
+      <h1>模块关系与数据流向图</h1>
+      <div class="mast-sub">AI 文稿审阅工具 MVP · 依据《产品需求说明书》V1.0 §19–§33、§63–§65 绘制。
+      编号①–⑬对应 §24 的十三步执行流程。点击任意模块查看职责、输入输出、依赖与异常分支。</div>
+    </div>
+  </div>
+  <div class="mast-right">
+    <div class="microlabel">ARGUS · DESIGN DOKUMENT</div>
+    <div>瑞士国际主义风格 · 黑白红</div>
+    <div><a href="02-产品交互原型.html">→ 02 产品交互原型</a></div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="tb-block">
+    <button class="primary" id="btnPlay">▶ 播放完整流程</button>
+    <button class="sq" id="btnPrev" title="上一步">◂</button>
+    <div class="stepcount" id="stepCount">— / 13</div>
+    <button class="sq" id="btnNext" title="下一步">▸</button>
+  </div>
+  <div class="tb-block">
+    <span class="microlabel">速度</span>
+    <select id="speed"><option value="0.6">0.6×</option><option value="1" selected>1×</option><option value="1.8">1.8×</option></select>
+  </div>
+  <div class="tb-block grow">
+    <button class="togglebtn on" id="tgErr"><span class="box"></span>异常分支</button>
+    <button class="togglebtn on" id="tgDep"><span class="box"></span>关键依赖</button>
+    <button id="btnReset">重置</button>
+  </div>
+</div>
+
+<div class="stepcard" id="stepCard">
+  <div class="sc-no" id="scNo">00</div>
+  <div>
+    <div class="sc-title" id="scTitle"></div>
+    <div class="sc-desc" id="scDesc"></div>
+    <div class="sc-hint" id="scHint"></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="stage-wrap"><svg id="stage" viewBox="0 0 1400 980" xmlns="http://www.w3.org/2000/svg"></svg></div>
+
+  <aside>
+    <div class="tabs">
+      <div class="tab on" data-tab="mod">模块 MODULE</div>
+      <div class="tab" data-tab="obj">数据 DATEN</div>
+    </div>
+    <div id="idxMod"></div>
+    <div class="detail" id="detail"></div>
+    <div class="objlist" id="objList"></div>
+  </aside>
+</div>
+
+<div class="openparams">
+  <div class="op-head">
+    <span class="microlabel">OFFENE PARAMETER · 开发前待定参数（PRD §71）</span>
+    <span style="font-size:10px;color:rgba(245,243,238,.5)">点击高亮受影响的模块</span>
+  </div>
+  <div class="op-grid" id="opGrid"></div>
+</div>
+
+<footer class="page">
+  <span>ARGUS · 01 模块关系与数据流 · 仅设计稿，非实现</span>
+  <span>图例：实线=数据流 · 虚线灰=依赖 · 虚线红=异常分支 · ①–⑬=执行步骤 · 深红=当前选中</span>
+</footer>
+
+<script>
+/* ================================================================
+   数据定义：模块 / 连线 / 步骤 / 数据对象 / 待定参数
+   ================================================================ */
+const NODES = [
+ {id:'nr', layer:'ui', zh:'New Review 输入页', en:'Input', x:40,y:80,w:210,h:110,
+  sub:['粘贴原文 · 选择 Category','前置校验 · 开始审阅'],
+  duties:['提供大文本输入区，支持 Markdown 粘贴','展示全部已启用 Category 复选框','执行三项前置校验：原文非空 / 至少选一个类别 / 存在可用模型配置','校验失败显示明确错误，不只显示「发生错误」'],
+  inputs:['用户粘贴的原文','启用的 ReviewCategory 列表','ModelConfig 是否存在'],
+  outputs:['原文文本','selectedCategoryIds → 开始审阅'],
+  deps:['settings'],errs:['原文为空 → 不能开始','未选择任何 Category → 不能开始','无可用模型配置 → 不能开始'],prd:'§8'},
+
+ {id:'parser', layer:'app', zh:'Document Parser 文档解析', en:'Parser', x:315,y:80,w:220,h:110,
+  sub:['Markdown → Block 模型','稳定 ID：block_001…'],
+  duties:['把原文解析为 Document + DocumentBlock','识别 heading / paragraph / list_item / quote / code / other','每块保留 rawText 与 plainText、order 与稳定 ID','渲染基于 Block 模型，保证 Anchor 不被 Markdown 渲染破坏'],
+  inputs:['原文（Markdown 纯文本）'],
+  outputs:['Document','DocumentBlock[]（id / type / rawText / plainText / order）'],
+  deps:[],errs:['不支持的语法归入 other 类型，不中断解析'],prd:'§29 §57 §8.2'},
+
+ {id:'orch', layer:'app', zh:'Review Orchestrator 审阅编排', en:'Orchestrator', x:315,y:300,w:220,h:140, wide:true,
+  sub:['核心业务调度模块','并发控制 · 失败隔离 · 触发报告'],
+  duties:['获取选中的 Category，创建 ReviewSession 与 CategoryRun','控制并发（Provider 并发限制优先）','经 Pi 调用模型，接收并验证结果','一个 Category 失败不影响其他 Category','判定整体状态（completed / partial_failed）','全部结束后触发 Report Generator','支持单类重跑：删除旧 Findings 后重新执行'],
+  inputs:['DocumentBlocks','selectedCategoryIds','ReviewCategory（含 Prompt）','ModelConfig'],
+  outputs:['CategoryRun 调度','整体状态判定','Report 触发信号'],
+  deps:['settings','appdata'],errs:['单类失败 → 该 Run=failed，其余继续，会话= partial_failed','Context 超限 → Local Review 分块 / Global Review 先生成结构表示','网络类错误自动重试 ≤2；Key/模型名/BaseURL 错误不自动重试'],prd:'§24–§28 §64'},
+
+ {id:'runs', layer:'app', zh:'CategoryRun × N 并行任务', en:'Parallel Runs', x:595,y:80,w:220,h:130, wide:true,
+  sub:['每个 Category 一个独立 Run','独立 Prompt · 独立状态'],
+  duties:['每类独立执行：Logic / Rhetoric / Structure…互不等待','状态机：pending → running → completed | failed','一个 Category 完成即显示其 Findings，不等待其他','界面显示：完成·8 / 分析中 / 等待 / 失败'],
+  inputs:['该 Category 的独立 Prompt（四段输入：System + Category + Schema + Context）'],
+  outputs:['Structured Output（JSON Findings 原始结果）','Run 状态与错误信息'],
+  deps:['orch'],errs:['失败仅标记本 Run，可单独重新运行'],prd:'§17 §25 §26 §56'},
+
+ {id:'pi', layer:'ai', zh:'Pi Runtime AI 运行时', en:'Pi Runtime', x:595,y:380,w:220,h:120, wide:true,
+  sub:['唯一 AI Runtime 层','应用不再叠加 Agent 框架'],
+  duties:['模型调用与 Provider 接入','Streaming 支持','Tool / Agent Runtime、消息上下文','调用生命周期与模型错误处理'],
+  inputs:['组装完成的 Prompt','ModelConfig（provider / key / baseUrl…）'],
+  outputs:['模型原始返回（流式或整段）','分类错误信息（超时 / RateLimit / 401…）'],
+  deps:['appdata'],errs:['API Key 无效 / 模型不存在 / Base URL 无法连接 → 不自动重试','超时 / Rate Limit → 自动重试 ≤2','Context Length 超限 → 上抛编排器转分块'],prd:'§19 §20 §51 §52'},
+
+ {id:'provider', layer:'ext', zh:'Model Provider 外部服务', en:'Extern', x:595,y:640,w:220,h:100, ext:true,
+  sub:['OpenAI · Anthropic · Google','OpenAI-compatible（自定义 Base URL）'],
+  duties:['接收 API 请求，返回 Structured Output','隐私边界：原文只发送给用户配置的 Provider','日志与错误不得包含完整 API Key'],
+  inputs:['API 请求（Prompt + Key）'],
+  outputs:['JSON / 流式响应','HTTP 层错误码'],
+  deps:[],errs:['401 / 404 / 超时 / 429 等 → 由 Pi 转译为可读错误'],prd:'§22 §23 §55'},
+
+ {id:'norm', layer:'app', zh:'Finding Normalizer 规范化', en:'Normalizer', x:875,y:80,w:220,h:110,
+  sub:['Schema 校验 · 字段清理','不把这些逻辑放进 Prompt'],
+  duties:['验证 Schema：AI 必须返回结构化数据','验证必填字段、清理空字段','修复 Severity（high / medium / low）','校验 quote 非空','Schema 无效 → 自动修复一次，仍失败则 Run=failed'],
+  inputs:['各 Run 的 Structured Output（JSON）'],
+  outputs:['字段合法的 Finding 列表'],
+  deps:[],errs:['Structured Output 无效 → 自动修复 ×1 → 仍失败 → 该 Category 标记失败'],prd:'§33 §65'},
+
+ {id:'anchor', layer:'app', zh:'Finding Anchor 定位校验', en:'Anchor', x:875,y:230,w:220,h:120,
+  sub:['blockId → quote → offset 三步校验','不信任模型返回的 offset'],
+  duties:['① 检查 blockId 是否存在','② 检查 quote 是否存在于该 Block','③ 检查 start/end offset 是否匹配 quote','offset 不符 → 按 quote 重定位；同 Block 多个相同 quote → 上下文辅助','仍无法定位 → 标记 unanchored：右侧显示、左侧不高亮'],
+  inputs:['规范化后的 Findings','DocumentBlocks（稳定 ID + plainText）'],
+  outputs:['anchored Findings（含精确定位）','unanchored Findings'],
+  deps:['parser'],errs:['定位失败 → anchorStatus=unanchored，保留显示但不参与高亮'],prd:'§30 §31 §32 §57'},
+
+ {id:'dedup', layer:'app', zh:'Finding Dedup 去重合并', en:'Dedup', x:875,y:400,w:220,h:100,
+  sub:['仅同 Category 内合并','跨 Category 重复是合理结果'],
+  duties:['不同 Chunk 产生的重复 Finding 合并','同一 Category 内：quote 相同 + 类型相同 + problem 高度相似 → 合并','不同 Category 的相似 Finding 不合并（同一句的逻辑+修辞问题都应保留）'],
+  inputs:['anchored / unanchored Findings'],
+  outputs:['最终 Findings 集合（写入存储并显示）'],
+  deps:[],errs:['MVP 只处理明显重复，不做语义级归并'],prd:'§38'},
+
+ {id:'reportgen', layer:'app', zh:'Report Generator 报告生成', en:'Report Gen', x:875,y:560,w:220,h:110,
+  sub:['只基于已有 Findings','不重新独立审阅全文'],
+  duties:['输入：文档概要 + 全部成功 Findings + Category 统计 + 失败信息','产出四部分：总体摘要 / 优先问题（≤5–10，必须关联已有 Finding）/ Category Summary / 完整列表','部分 Category 失败也可生成，但必须明确列出失败项'],
+  inputs:['全部 Findings','各 Run 状态与失败列表','文档概要'],
+  outputs:['ReviewReport（summary / priorityFindingIds / categorySummaries / failedCategoryIds）'],
+  deps:['dedup'],errs:['不凭空创建新的具体问题，避免无法追踪的建议'],prd:'§39–§42'},
+
+ {id:'viewer', layer:'ui', zh:'Document Viewer 原文区', en:'Viewer', x:1145,y:80,w:215,h:120, wide:true,
+  sub:['只读 · Markdown 渲染','支持重叠高亮'],
+  duties:['基于 Block 模型渲染原文，保持阅读宽度与段落结构','Finding 高亮：同一位置可叠加多个 Finding','点击高亮 → 右侧定位 + 选中 + 强调；多 Finding 时弹出列表','Hover → 临时强调对应 Finding'],
+  inputs:['DocumentBlocks','anchored Findings 的定位区间'],
+  outputs:['用户点击 / 悬停的 Finding'],
+  deps:['parser'],errs:['unanchored Finding 不在此侧显示高亮','禁止先渲染 HTML 再用全文字符 offset 定位'],prd:'§10 §57'},
+
+ {id:'panel', layer:'ui', zh:'Finding Panel 批注区', en:'Panel', x:1145,y:250,w:215,h:140, wide:true,
+  sub:['Category + Severity 双筛选','卡片紧凑 · 无状态管理'],
+  duties:['Finding 卡片：Category / Severity / 标题 / 原文 / 问题 / 原因 / 建议','Category 与 Severity 筛选可同时生效','点击卡片 → 左侧滚动定位并高亮','unanchored Finding 显示但标注未定位','空结果显示：「本次 Review 未发现该类别下的明显问题」'],
+  inputs:['最终 Findings','筛选条件'],
+  outputs:['选中 / 悬停的 Finding'],
+  deps:['viewer'],errs:['筛选无结果 → 明确空状态文案，不断言「文章没有问题」'],prd:'§11 §12 §48'},
+
+ {id:'report', layer:'ui', zh:'Report 报告视图', en:'Report', x:1145,y:470,w:215,h:110,
+  sub:['位于 Workspace 内','问题可回跳原文'],
+  duties:['展示总体摘要、优先问题、Category Summary、完整 Findings','点击任意 Finding → 回到对应原文位置与右侧批注','等待 Review 阶段全部结束后才生成'],
+  inputs:['ReviewReport'],
+  outputs:['用户点击回跳的 Finding'],
+  deps:['reportgen'],errs:['部分类别失败 → 报告顶部明确标注失败类别'],prd:'§41 §47'},
+
+ {id:'settings', layer:'ui', zh:'Settings 设置页', en:'Settings', x:40,y:560,w:210,h:110,
+  sub:['Models · Review Categories','所有设置直接开放（单用户）'],
+  duties:['模型配置：新增 / 编辑 / 删除 / 默认 / 测试连接','测试失败显示 Provider 可读错误，不只显示 HTTP 状态码','Category：新建 / 改名 / 改 Prompt / 启停 / 默认选中 / 排序 / 复制 / 删除','Prompt 编辑器提供上下文变量提示'],
+  inputs:['用户修改的 ModelConfig / ReviewCategory'],
+  outputs:['持久化配置（供全流程读取）'],
+  deps:['appdata'],errs:['测试连接失败 → 提示下一步检查项'],prd:'§43–§46'},
+
+ {id:'appdata', layer:'store', zh:'App Data 应用数据', en:'Storage', x:40,y:730,w:470,h:160, wide:true,
+  sub:['MVP 无项目管理 · 仅保存应用状态'],
+  duties:['保存 ModelConfig / ReviewCategory / Prompt / 当前文本 / 当前 Review 结果','建议保留最近一次 Review，刷新后可恢复','API Key 属敏感信息：日志与错误信息不得包含完整 Key'],
+  inputs:['各模块写入的配置与结果'],
+  outputs:['配置读取（启用的类别 / 默认模型）','最近一次 Review 恢复'],
+  deps:[],errs:['存储方案待定：LocalStorage / IndexedDB / SQLite / Server DB'],prd:'§53 §54 §23'},
+];
+
+const EDGES = [
+ {id:'e1', kind:'flow', num:1, pts:[[250,120],[315,120]], lbl:'原文 Markdown', lx:282,ly:112,anchor:'middle'},
+ {id:'e2', kind:'flow', num:3, pts:[[250,170],[300,170],[300,370],[315,370]], lbl:'开始审阅 · selectedCategoryIds', lx:282,ly:196,anchor:'middle'},
+ {id:'e3', kind:'flow', dbl:true, pts:[[145,670],[145,730]], lbl:'读写配置', lx:152,ly:704,anchor:'start'},
+ {id:'e4', kind:'flow', num:2, pts:[[425,190],[425,300]], lbl:'Document + Blocks (block_001…)', lx:433,ly:248,anchor:'start'},
+ {id:'e5', kind:'flow', num:4, pts:[[535,340],[560,340],[560,145],[595,145]], lbl:'创建 Run · 并发受 Provider 限制优先', lx:568,ly:250,anchor:'start',rot:-90},
+ {id:'e6', kind:'flow', num:5, pts:[[705,210],[705,380]], lbl:'Prompt = System + Category + Schema + Context', lx:713,ly:298,anchor:'start'},
+ {id:'e7', kind:'flow', dbl:true, pts:[[705,500],[705,640]], lbl:'API 调用 · Streaming · APIKey', lx:713,ly:575,anchor:'start'},
+ {id:'e8', kind:'flow', num:6, pts:[[815,410],[860,410],[860,135],[875,135]], lbl:'Structured Output (JSON)', lx:852,ly:280,anchor:'middle',rot:-90},
+ {id:'e9', kind:'flow', num:7, pts:[[985,190],[985,230]], lbl:'校验后 Findings', lx:993,ly:214,anchor:'start'},
+ {id:'e10',kind:'flow', num:8, pts:[[985,350],[985,400]], lbl:'anchored / unanchored', lx:993,ly:380,anchor:'start'},
+ {id:'e11',kind:'flow', num:11, pts:[[1095,450],[1120,450],[1120,320],[1145,320]], lbl:'Findings · 完成即显示', lx:1118,ly:386,anchor:'middle',rot:-90},
+ {id:'e12',kind:'flow', pts:[[875,460],[845,460],[845,758],[510,758]], lbl:'保存 Findings', lx:660,ly:750,anchor:'middle'},
+ {id:'e13',kind:'flow', dbl:true, num:11, pts:[[1252,200],[1252,250]], lbl:'双向定位 click / hover', lx:1258,ly:228,anchor:'start'},
+ {id:'e15',kind:'flow', num:13, pts:[[1025,500],[1025,560]], lbl:'全部 Findings + 失败列表', lx:1033,ly:534,anchor:'start'},
+ {id:'e16',kind:'flow', num:12, pts:[[505,440],[560,440],[560,778],[890,778],[890,670]], lbl:'全部完成（含部分失败）→ 触发报告', lx:726,ly:792,anchor:'middle'},
+ {id:'e17',kind:'flow', num:13, pts:[[1095,615],[1120,615],[1120,525],[1145,525]], lbl:'ReviewReport', lx:1118,ly:572,anchor:'middle',rot:-90},
+ {id:'e18',kind:'dep', pts:[[1252,470],[1252,390]], lbl:'点击 Finding 回跳原文', lx:1244,ly:432,anchor:'middle',rot:-90},
+ {id:'e19',kind:'flow', num:11, pts:[[425,80],[425,58],[1252,58],[1252,80]], lbl:'DocumentBlocks → 渲染（只读 · 基于 Block 模型）', lx:838,ly:50,anchor:'middle'},
+ {id:'d1', kind:'dep', pts:[[875,290],[525,290],[525,190]], lbl:'依赖 · blockId + plainText（重定位基准）', lx:700,ly:282,anchor:'middle'},
+ {id:'d2', kind:'dep', dbl:true, pts:[[52,190],[52,560]], lbl:'启用的类别 · 默认选中 · 排序', lx:44,ly:380,anchor:'middle',rot:-90},
+ {id:'e20',kind:'flow', num:3, pts:[[490,440],[490,730]], lbl:'保存 Session / Run 状态', lx:498,ly:600,anchor:'start',rot:-90},
+ {id:'r2', kind:'err', pts:[[595,430],[555,430],[555,340],[535,340]], lbl:'失败上报 Run=failed', lx:547,ly:398,anchor:'middle',rot:-90},
+ {id:'r3', kind:'err', pts:[[595,465],[540,465],[540,415],[535,415]]},
+ {id:'r5', kind:'err', pts:[[1095,290],[1120,290],[1120,272],[1145,272]], lbl:'unanchored · 显示但不高亮', lx:1097,ly:254,anchor:'end'},
+];
+
+const ANNOS = [
+ {x:80,y:206, lines:['✗ 校验失败：原文为空 / 未选任何类别 / 无可用模型配置','   → 按钮禁用并显示明确错误（§8.4）']},
+ {x:598,y:522, lines:['✗ Key 无效 · 模型不存在 · Base URL 错 → 不自动重试','↻ 超时 · Rate Limit → 自动重试 ≤ 2（§52）','▤ Context 超限 → 转 Local 分块 / 全局结构表示（§34–36）']},
+ {x:875,y:200, lines:['✗ Schema 无效 → 自动修复 ×1 → 仍失败 = failed（§33）']},
+ {x:315,y:456, lines:['✗ 单类失败 → partial_failed，其余继续','   可单类重跑：先删该类旧 Findings（§27 §28）']},
+];
+
+const STEPS = [
+ {t:'解析原文', d:'用户在 New Review 粘贴 Markdown 原文并点击「开始审阅」。前置校验通过：原文非空、已选类别、存在模型配置。', h:'§24-1 · §8.4', n:['nr','parser'], e:['e1']},
+ {t:'创建 Document Blocks', d:'Parser 将原文解析为 Document 与若干 Block（heading / paragraph / list_item / quote / code），每块拥有稳定 ID（block_001…）、rawText 与 plainText。渲染与定位都以 Block 模型为基准。', h:'§24-2 · §29 · §57', n:['parser'], e:['e4']},
+ {t:'创建 ReviewSession', d:'Orchestrator 建立本次会话：记录 documentId、选中 Category 集合，状态置为 running。', h:'§24-3 · §61', n:['orch','nr'], e:['e2','e20']},
+ {t:'创建 CategoryRun × N', d:'每个选中 Category 生成独立 Run（pending / running / completed / failed），尽量并行执行；Provider 并发限制优先。', h:'§24-4 · §25 · §26', n:['orch','runs'], e:['e5']},
+ {t:'组装 Prompt 调用模型', d:'每个 Run 独立组装四段输入：System Instruction + Category Prompt + Output Schema + Document Context。修改一个 Prompt 不影响其他 Category。', h:'§24-5 · §17 §18', n:['runs','pi'], e:['e6']},
+ {t:'接收 Structured Output', d:'Pi 经 Provider 完成调用与 Streaming。Finding 在结构完整前不写入正式结果，最终必须经 Schema 校验后再展示。', h:'§24-6 · §50', n:['pi','provider','norm'], e:['e7','e8']},
+ {t:'验证 Finding', d:'Normalizer 验证 Schema 与必填字段、清理空值、修复 Severity、校验 quote。Schema 无效时执行一次自动修复，仍失败则该 Category 标记失败。', h:'§24-7 · §33 §65', n:['norm'], e:['e9']},
+ {t:'定位 Finding', d:'Anchor 三步校验：blockId 存在 → quote 在该 Block 内 → offset 匹配。offset 不符按 quote 重定位；无法定位则标记 unanchored（显示但不高亮）。', h:'§24-8 · §30 §31', n:['anchor','parser'], e:['e10','d1','r5']},
+ {t:'合并 Findings', d:'各 Chunk / 各 Run 的结果汇入去重器；仅在同一 Category 内合并明显重复（quote 相同 + 类型相同 + problem 高度相似）。', h:'§24-9 · §38', n:['dedup'], e:['e10']},
+ {t:'去重', d:'跨 Category 的相似 Finding 不合并——同一句话同时存在逻辑与修辞问题是合理结果。去重后写入存储。', h:'§24-10 · §38', n:['dedup','appdata'], e:['e12']},
+ {t:'显示 Findings', d:'每个 Category 完成即显示其 Findings，不等待其他。左侧原文高亮（支持重叠），右侧卡片列表；点击 / 悬停双向定位。', h:'§24-11 · §10 §11 §56', n:['panel','viewer','dedup'], e:['e11','e13','e19']},
+ {t:'所有 Category 完成', d:'Orchestrator 判定整体状态：completed 或 partial_failed。单类失败不终止整体，用户可单独重跑失败项；重跑完成后需重新生成报告。', h:'§24-12 · §27 §28', n:['orch','pi'], e:['e16','r2','r3']},
+ {t:'生成汇总报告', d:'Report Generator 仅基于已有 Findings 与失败信息生成 ReviewReport：总体摘要、优先问题（≤5–10 且必须关联已有 Finding）、Category Summary、完整列表。不重新审阅全文。', h:'§24-13 · §39–§42', n:['reportgen','report'], e:['e15','e17','e18']},
+];
+
+const OBJS = [
+ {name:'ModelConfig', prd:'§21', f:`{
+  provider: string   // OpenAI | Anthropic | Google | OpenAI-compatible
+  model: string
+  apiKey: string      // 敏感：日志/错误不得含完整 Key
+  baseUrl?: string
+  temperature?: number
+  maxTokens?: number
+}`},
+ {name:'ReviewCategory', prd:'§16', f:`{
+  id: string
+  name: string
+  description?: string
+  prompt: string          // 每类独立 Prompt，不合并
+  enabled: boolean
+  defaultSelected: boolean
+  order: number
+}`},
+ {name:'DocumentBlock', prd:'§29', f:`{
+  id: string          // block_001 … 稳定 ID
+  type: string        // heading|paragraph|list_item|quote|code|other
+  rawText: string
+  plainText: string   // 定位基准
+  order: number
+}`},
+ {name:'ReviewSession', prd:'§61', f:`{
+  id: string
+  documentId: string
+  selectedCategoryIds: string[]
+  status: "idle"|"running"|"completed"
+        | "partial_failed"|"failed"
+  createdAt: string
+}`},
+ {name:'CategoryRun', prd:'§62', f:`{
+  id: string
+  reviewSessionId: string
+  categoryId: string
+  status: "pending"|"running"|"completed"|"failed"
+  modelConfigId: string
+  error?: string
+  startedAt?: string
+  completedAt?: string
+}`},
+ {name:'Finding', prd:'§32', f:`{
+  id: string
+  categoryId: string
+  severity: "high"|"medium"|"low"   // 严重|建议修改|可优化
+  title: string
+  quote: string
+  blockId?: string
+  startOffset?: number
+  endOffset?: number
+  problem: string
+  reason: string
+  suggestion: string
+  anchorStatus: "anchored"|"unanchored"
+}`},
+ {name:'ReviewReport', prd:'§42', f:`{
+  summary: string
+  priorityFindingIds: string[]   // 5–10，必须关联已有 Finding
+  categorySummaries: {
+    categoryId: string
+    high: number; medium: number; low: number
+    summary: string
+  }[]
+  failedCategoryIds: string[]
+}`},
+];
+
+const OPEN_PARAMS = [
+ {zh:'最大文稿长度', opts:'1 万字 / 3 万字 / 5 万字', imp:'影响 Chunk 切分与 Global Review 方案', n:['parser','orch','runs']},
+ {zh:'应用形态', opts:'Web App / Desktop / Local Web', imp:'影响 API Key 存储方案（§23）', n:['appdata','settings']},
+ {zh:'数据存储', opts:'LocalStorage / IndexedDB / SQLite / Server DB', imp:'影响持久化与「最近一次 Review」恢复（§54）', n:['appdata']},
+ {zh:'Pi 运行位置', opts:'浏览器 / 本地服务 / 服务端', imp:'影响 API Key 安全与模型网络访问（§71）', n:['pi','provider']},
+];
+
+/* ================================================================
+   渲染
+   ================================================================ */
+const svg = document.getElementById('stage');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+// defs: arrowheads
+const defs = el('defs',{},svg);
+[['arr-ink','#17150f','auto','start','arrInk'],['arr-red','#e2231a','auto','start','arrRed']].forEach(([id,color,refOrient,refPos,mid])=>{
+  const m = el('marker',{id, viewBox:'0 0 10 10', refX:refPos==='start'?0:9, refY:5, markerWidth:7, markerHeight:7, orient:refOrient},defs);
+  el('path',{d:'M0,0 L10,5 L0,10 z', fill:color},m);
+});
+const markInk='url(#arrInk)', markRed='url(#arrRed)';
+
+// 列结构与表头
+const gGrid = el('g',{},svg);
+[285,565,845,1125].forEach(x=> el('line',{x1:x,y1:24,x2:x,y2:950,class:'gridline'},gGrid));
+const COLS=[['01','EINGABE / 输入',40],['02','PARSEN · ORCHESTRIEREN / 解析与调度',315],['03','AUSFÜHREN / 执行',595],['04','NACHBEARBEITEN / 后处理',875],['05','DARSTELLEN / 呈现',1145]];
+COLS.forEach(c=>{
+  const t=el('text',{x:c[2],y:38,class:'colhead'},gGrid);
+  t.appendChild(document.createTextNode(c[0]+' — '));
+  const s=el('tspan',{},t); s.textContent=c[1];
+});
+
+// 连线（先画线，节点覆盖其上）
+const gEdges = el('g',{},svg);
+EDGES.forEach(ed=>{
+  const g = el('g',{class:'edge '+ed.kind, 'data-id':ed.id},gEdges);
+  const d = ed.pts.map((p,i)=>(i?'L':'M')+p[0]+','+p[1]).join(' ');
+  const path = el('path',{d},g);
+  const isErr = ed.kind==='err';
+  if(ed.dbl){ path.setAttribute('marker-start', isErr?markRed:markInk); path.setAttribute('marker-end', isErr?markRed:markInk); }
+  else path.setAttribute('marker-end', isErr?markRed:markInk);
+  if(ed.lbl){
+    const t = el('text',{x:ed.lx, y:ed.ly, class:'lbl','text-anchor':ed.anchor||'middle'},g);
+    if(ed.rot) t.setAttribute('transform',`rotate(${ed.rot} ${ed.lx} ${ed.ly})`);
+    t.textContent = ed.lbl;
+  }
+  if(ed.num){
+    const [nx,ny] = edgeNumPos(ed);
+    el('rect',{x:nx-8,y:ny-8,width:16,height:16,fill:isErr?'#e2231a':'#17150f'},g);
+    const nt = el('text',{x:nx,y:ny+3.5,class:'num','text-anchor':'middle'},g); nt.textContent=ed.num;
+  }
+  const title = el('title',{},g); title.textContent = (ed.lbl||'') + (ed.num?` （步骤 ${ed.num}）`:'');
+});
+function edgeNumPos(ed){
+  // 放在最后一段线的中点
+  const p = ed.pts, a=p[p.length-2], b=p[p.length-1];
+  return [(a[0]+b[0])/2,(a[1]+b[1])/2];
+}
+
+// 红色注解
+const gAnno = el('g',{},svg);
+ANNOS.forEach(a=> a.lines.forEach((line,i)=>{
+  const t=el('text',{x:a.x,y:a.y+i*14,class:'anno'},gAnno); t.textContent=line;
+}));
+
+// 节点
+const LAYER_TAG={ui:'UI',app:'APPLICATION',ai:'AI',store:'STORAGE',ext:'EXTERN'};
+const gNodes = el('g',{},svg);
+const nodeEls={};
+NODES.forEach((nd,idx)=>{
+  const g = el('g',{class:'node'+(nd.ext?' ext':'')+(nd.wide?' wide':''),'data-id':nd.id},gNodes);
+  el('rect',{x:nd.x,y:nd.y,width:nd.w,height:nd.h,rx:0,class:'n-rect'},g);
+  const no = el('text',{x:nd.x+10,y:nd.y+18,class:'n-no'},g); no.textContent = String(idx+1).padStart(2,'0');
+  const zh = el('text',{x:nd.x+34,y:nd.y+19,class:'n-zh'},g); zh.textContent = nd.zh;
+  const en = el('text',{x:nd.x+10,y:nd.y+33,class:'n-en'},g); en.textContent = LAYER_TAG[nd.layer]+' · '+nd.en;
+  nd.sub.forEach((s,i)=>{ const t=el('text',{x:nd.x+10,y:nd.y+52+i*15,class:'n-sub'},g); t.textContent=s; });
+  if(nd.id==='runs') drawLanes(g,nd);
+  if(nd.id==='appdata') drawChips(g,nd);
+  nodeEls[nd.id]=g;
+  g.addEventListener('click',()=>selectNode(nd.id));
+  g.addEventListener('mouseenter',()=>hoverNode(nd.id,true));
+  g.addEventListener('mouseleave',()=>hoverNode(nd.id,false));
+});
+function drawLanes(g,nd){
+  const lanes=[['逻辑','running','分析中'],['修辞','completed','完成 · 8'],['结构','failed','失败'],['清晰度','pending','等待']];
+  lanes.forEach((l,i)=>{
+    const y=nd.y+58+i*17;
+    el('rect',{x:nd.x+12,y:y-7,width:8,height:8,fill:{running:'#17150f',completed:'#0d7a68',failed:'#e2231a',pending:'none', stroke:'#17150f'}[l[1]]||'none',stroke:'#17150f','stroke-width':1},g);
+    const t=el('text',{x:nd.x+28,y:y+2,class:'lane'},g); t.textContent=l[0]+'  '+l[2];
+  });
+}
+function drawChips(g,nd){
+  const chips=['ModelConfig','ReviewCategory','ReviewSession','CategoryRun','Finding','ReviewReport','当前文本 / 草稿'];
+  chips.forEach((c,i)=>{
+    const col=i%3, row=Math.floor(i/3);
+    const cx=nd.x+12+col*152, cy=nd.y+92+row*30;
+    el('rect',{x:cx,y:cy,width:144,height:22,fill:'none',stroke:'rgba(23,21,15,.35)','stroke-width':1},g);
+    const t=el('text',{x:cx+7,y:cy+15,class:'chip'},g); t.textContent=c;
+  });
+}
+
+/* ---------- 交互 ---------- */
+let selected=null, playing=false, playTimer=null, stepIdx=-1, showErr=true, showDep=true;
+
+function hoverNode(id,on){
+  if(playing) return;
+  EDGES.forEach(ed=>{
+    const g=gEdges.querySelector(`[data-id="${ed.id}"]`);
+    const hit = ed.pts && (edgeTouches(ed,id));
+    g.style.opacity = on ? (hit?1:.15) : '';
+  });
+}
+function edgeTouches(ed,nodeId){
+  const nd = NODES.find(n=>n.id===nodeId);
+  // 简化：由几何端点判断连线两端是否落在节点框附近
+  const near=(pt)=> pt[0]>=nd.x-14&&pt[0]<=nd.x+nd.w+14&&pt[1]>=nd.y-14&&pt[1]<=nd.y+nd.h+14;
+  return ed.pts.some(near) && (near(ed.pts[0])||near(ed.pts[ed.pts.length-1]));
+}
+
+function selectNode(id){
+  selected=id;
+  Object.values(nodeEls).forEach(g=>g.classList.remove('sel'));
+  nodeEls[id].classList.add('sel');
+  renderDetail(id);
+  document.getElementById('idxMod').style.display='';
+  document.getElementById('detail').classList.add('show');
+  document.getElementById('objList').classList.remove('show');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab==='mod'));
+  document.querySelectorAll('.idx-item').forEach(it=>it.classList.toggle('sel',it.dataset.id===id));
+}
+
+function renderIndex(){
+  const box=document.getElementById('idxMod');
+  const groups={ui:'UI 层',app:'APPLICATION 应用层',ai:'AI 层',store:'STORAGE 存储层',ext:'EXTERN 外部'};
+  let html='';
+  for(const layer of ['ui','app','ai','store','ext']){
+    const items=NODES.map((n,i)=>({n,i})).filter(o=>o.n.layer===layer);
+    if(!items.length) continue;
+    html+=`<div class="idx-group"><div class="g-title">${groups[layer]}</div>`;
+    items.forEach(({n,i})=>{
+      html+=`<div class="idx-item" data-id="${n.id}"><span class="no">${String(i+1).padStart(2,'0')}</span>${n.zh.split(' ')[0]}<span class="en">${n.en}</span></div>`;
+    });
+    html+='</div>';
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('.idx-item').forEach(it=> it.addEventListener('click',()=>selectNode(it.dataset.id)) );
+}
+
+function renderDetail(id){
+  const nd=NODES.find(n=>n.id===id);
+  const li=a=>a.map(x=>`<li>${x}</li>`).join('');
+  const depLinks=(nd.deps||[]).map(d=>`<a class="nl" data-dep="${d}">${NODES.find(n=>n.id===d).zh}</a>`).join(' · ')||'<li style="color:var(--ink60)">—</li>';
+  document.getElementById('detail').innerHTML=`
+    <div class="d-head"><span class="d-no">${String(NODES.indexOf(nd)+1).padStart(2,'0')}</span><span class="d-zh">${nd.zh}</span></div>
+    <div class="d-en">${LAYER_TAG[nd.layer]} · ${nd.en} · PRD ${nd.prd}</div>
+    <div class="d-sec"><h4>职责 Responsibilities</h4><ul>${li(nd.duties)}</ul></div>
+    <div class="d-sec"><h4>输入 Input</h4><ul>${li(nd.inputs)}</ul></div>
+    <div class="d-sec"><h4>输出 Output</h4><ul>${li(nd.outputs)}</ul></div>
+    <div class="d-sec"><h4>依赖 Depends on</h4><ul><li>${depLinks}</li></ul></div>
+    <div class="d-sec d-err"><h4>异常分支 Error Branches</h4><ul>${li(nd.errs)}</ul></div>`;
+  document.querySelectorAll('#detail [data-dep]').forEach(a=>a.addEventListener('click',()=>selectNode(a.dataset.dep)));
+}
+
+function renderObjs(){
+  const box=document.getElementById('objList');
+  box.innerHTML = '<div style="padding:14px 0 4px;font-size:11px;color:var(--ink60);line-height:1.7">MVP 核心数据对象（PRD §60）。点击折叠。</div>' +
+    OBJS.map((o,i)=>`<div class="obj${i?' closed':' closed'}"><h5><span>${String(i+1).padStart(2,'0')} ${o.name}</span><span class="prd">${o.prd}</span></h5><pre>${o.f.replace(/</g,'&lt;')}</pre></div>`).join('');
+  box.querySelectorAll('.obj h5').forEach(h=>h.addEventListener('click',()=>h.parentElement.classList.toggle('closed')));
+}
+
+function renderOpenParams(){
+  const box=document.getElementById('opGrid');
+  box.innerHTML = OPEN_PARAMS.map((p,i)=>`
+    <div class="op-item" data-i="${i}">
+      <span class="op-q">?</span><h6>${p.zh}</h6>
+      <div class="op-opts">${p.opts}</div>
+      <div class="op-imp">${p.imp}</div>
+    </div>`).join('');
+  box.querySelectorAll('.op-item').forEach(it=> it.addEventListener('click',()=>{
+    const p=OPEN_PARAMS[+it.dataset.i];
+    const on=it.classList.toggle('active');
+    box.querySelectorAll('.op-item').forEach(o=>{if(o!==it)o.classList.remove('active')});
+    Object.values(nodeEls).forEach(g=>g.classList.remove('hl'));
+    if(on) p.n.forEach(id=>nodeEls[id].classList.add('hl'));
+    document.querySelectorAll('.idx-item').forEach(x=>x.classList.remove('sel'));
+  }));
+}
+
+/* ---------- 步骤播放 ---------- */
+const stepCard=document.getElementById('stepCard');
+function setStep(i){
+  stepIdx=Math.max(-1,Math.min(STEPS.length-1,i));
+  clearStep();
+  if(stepIdx<0){ updateCount(); return; }
+  const s=STEPS[stepIdx];
+  svg.classList.add('playing');
+  s.n.forEach(id=>nodeEls[id].classList.add('on'));
+  s.e.forEach(eid=>{ const g=gEdges.querySelector(`[data-id="${eid}"]`); if(g) g.classList.add('on'); });
+  document.getElementById('scNo').textContent=String(stepIdx+1).padStart(2,'0');
+  document.getElementById('scTitle').textContent=s.t;
+  document.getElementById('scDesc').textContent=s.d;
+  document.getElementById('scHint').textContent='→ '+s.h;
+  stepCard.classList.add('show');
+  updateCount();
+}
+function clearStep(){
+  svg.classList.remove('playing');
+  Object.values(nodeEls).forEach(g=>g.classList.remove('on'));
+  gEdges.querySelectorAll('.edge').forEach(g=>g.classList.remove('on'));
+  stepCard.classList.remove('show');
+}
+function updateCount(){ document.getElementById('stepCount').textContent=(stepIdx<0?'—':String(stepIdx+1).padStart(2,'0'))+' / '+STEPS.length; }
+function tick(){
+  if(stepIdx>=STEPS.length-1){ setStep(0); }
+  else setStep(stepIdx+1);
+}
+function startPlay(){
+  playing=true; document.getElementById('btnPlay').textContent='⏸ 暂停';
+  if(stepIdx<0||stepIdx>=STEPS.length-1) setStep(0); else tick();
+  clearInterval(playTimer);
+  playTimer=setInterval(tick, 3200/parseFloat(document.getElementById('speed').value));
+}
+function stopPlay(){
+  playing=false; clearInterval(playTimer);
+  document.getElementById('btnPlay').textContent='▶ 播放完整流程';
+}
+document.getElementById('btnPlay').addEventListener('click',()=> playing?stopPlay():startPlay());
+document.getElementById('btnPrev').addEventListener('click',()=>{stopPlay();setStep(stepIdx-1)});
+document.getElementById('btnNext').addEventListener('click',()=>{stopPlay();tick()});
+document.getElementById('speed').addEventListener('change',()=>{ if(playing){stopPlay();startPlay();} });
+document.getElementById('btnReset').addEventListener('click',()=>{ stopPlay(); clearStep(); stepIdx=-1; updateCount();
+  Object.values(nodeEls).forEach(g=>g.classList.remove('hl','sel'));
+  document.querySelectorAll('.op-item').forEach(o=>o.classList.remove('active'));
+  gEdges.querySelectorAll('.edge').forEach(g=>g.style.opacity='');
+});
+
+document.getElementById('tgErr').addEventListener('click',function(){
+  showErr=!showErr; this.classList.toggle('on',showErr);
+  gEdges.querySelectorAll('.edge.err').forEach(g=>g.style.display=showErr?'':'none');
+  gAnno.style.display=showErr?'':'none';
+});
+document.getElementById('tgDep').addEventListener('click',function(){
+  showDep=!showDep; this.classList.toggle('on',showDep);
+  gEdges.querySelectorAll('.edge.dep').forEach(g=>g.style.display=showDep?'':'none');
+});
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  const mod=t.dataset.tab==='mod';
+  document.getElementById('idxMod').style.display=mod?'':'none';
+  document.getElementById('detail').classList.toggle('show',mod&&!!selected);
+  document.getElementById('objList').classList.toggle('show',!mod);
+}));
+
+renderIndex(); renderObjs(); renderOpenParams(); updateCount();
+selectNode('orch');
+</script>
+</body>
+</html>
