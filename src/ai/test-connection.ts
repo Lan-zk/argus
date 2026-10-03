@@ -31,6 +31,7 @@ export async function testConnection(
         signal,
         maxRetries: 0,
         maxTokens: 32,
+        sessionId: `argus-${cfg.id}`,
         ...(cfg.temperature !== undefined ? { temperature: cfg.temperature } : {}),
       },
     );

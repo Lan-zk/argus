@@ -115,6 +115,7 @@ async function modelReport(input: ReportInput, counts: Counts): Promise<ReviewRe
           signal: input.signal,
           maxRetries: 0,
           maxTokens: input.modelConfig!.maxTokens ?? 2_048,
+          sessionId: `argus-${input.modelConfig!.id}`,
         },
       ),
     (err) => classifyError(err, [input.apiKey]),

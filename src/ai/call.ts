@@ -68,6 +68,9 @@ export async function callFindings(
           apiKey: opts.apiKey,
           signal: opts.signal,
           maxRetries: 0,
+          // 会话路由/亲和：OpenCode 网关要求 x-opencode-session（缺省 400 MissingSessionID）；
+          // 其余 Provider 用于 prompt 缓存亲和，稳定值即安全
+          sessionId: `argus-${cfg.id}`,
           ...(cfg.temperature !== undefined ? { temperature: cfg.temperature } : {}),
           ...(cfg.maxTokens !== undefined ? { maxTokens: cfg.maxTokens } : {}),
         },

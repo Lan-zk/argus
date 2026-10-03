@@ -52,3 +52,5 @@
 16. **Radius 的 api 家族为 pi-messages（pi 自有协议）**：在线检索鉴权头按默认 Bearer 处理，如端点不支持则降级。
 
 17. **「未知错误」诊断增强**（2026-10-03，用户反馈 opencode-go 审阅报未知错误）：复现核查表明预设解析/tauri 通道/分类链路对 opencode-go 均正常（假 Key 干净映射 401→API Key 无效）；真实 Key 下的 400 request_error / 5xx 原先落入 unknown 且不带原因。现已：unknown 文案内嵌脱敏原始原因片段、5xx→Provider 服务端错误、400 非超限→请求被拒绝（含原因），流水日志保留完整未分类原文。用户个案待新报错文案定位。
+
+18. **OpenCode 系 400 MissingSessionID 根因与修复**（2026-10-03）：用户真实 Key 复现出 `400 {"type":"MissingSessionID"}` —— pi-ai 的 withOpenCodeSessionHeader 仅在 options.sessionId 存在时注入 `x-opencode-session` 路由头，此前三处调用点均未传。假 Key 时 401 先挡住故未暴露。已在 callFindings / testConnection / 报告调用统一传 `sessionId: argus-${配置id}`（稳定值，兼作其余 Provider 的缓存亲和键），含回归测试。
