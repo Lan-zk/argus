@@ -56,3 +56,5 @@
 18. **OpenCode 系 400 MissingSessionID 根因与修复**（2026-10-03）：用户真实 Key 复现出 `400 {"type":"MissingSessionID"}` —— pi-ai 的 withOpenCodeSessionHeader 仅在 options.sessionId 存在时注入 `x-opencode-session` 路由头，此前三处调用点均未传。假 Key 时 401 先挡住故未暴露。已在 callFindings / testConnection / 报告调用统一传 `sessionId: argus-${配置id}`（稳定值，兼作其余 Provider 的缓存亲和键），含回归测试。
 
 19. **Prompt 分层与文案净化**（prompt-layering，2026-10-03）：数据格式契约（severity 通用语义→System Instruction；引用规则/长度指引/段落级引用→Output Schema）全部上移系统层，7 个内置类别 Prompt 瘦身为纯审阅要求+一行校准。与 PRD §13 字面的偏差（severity 通用定义上移，类别层保留校准）视为对其意图的忠实执行。存量已保存类别的旧 Prompt 中重复规则无害，可「恢复内置」取精简版。渲染文案 5 处开发侧信息（MVP/PRD §n）已清除，测试固化「模板区无 MVP/PRD/§」断言。
+
+20. **开始审阅无跳转无进度（缺陷修复，2026-10-03）**：`ui.go("workspace")` 原本位于 `await session.startReview()`（全程 await 至审阅+报告完成）之后，用户被困在新建页「正在启动…」数分钟，spec 加载反馈场景不可达。修复：校验通过即跳转、审阅后台执行；启动即失败回跳展示错误；启动链路中途异常将未终态 run 标失败（可重跑）；双开守卫（进行中禁用开始按钮）；状态栏新增「类别进度 x/y」。

@@ -53,6 +53,12 @@ function onDividerDown(e: MouseEvent) {
 const STATUS_CLS: Record<string, string> = { completed: "ok", running: "run", failed: "fail" };
 
 const sessionBadgeClass = computed(() => session.status);
+const runProgress = computed(() => {
+  const rs = session.runList;
+  if (!rs.length) return "—";
+  const done = rs.filter((r) => r.status === "completed" || r.status === "failed").length;
+  return `${done}/${rs.length}`;
+});
 const statusText = computed(
   () =>
     ({
@@ -204,6 +210,7 @@ void SAMPLE_DOC;
     <div class="ws-statusbar">
       <span class="ws-stat">文档字数<b>{{ session.wordCount }}</b></span>
       <span class="ws-stat">已选类别<b>{{ session.session?.selectedCategoryIds.length ?? 0 }}</b></span>
+      <span class="ws-stat">类别进度<b>{{ runProgress }}</b></span>
       <span class="ws-stat">批注<b>{{ session.findings.length }}</b></span>
       <span class="badge" :class="sessionBadgeClass">{{ statusText }}</span>
       <div class="ws-actions">

@@ -73,12 +73,23 @@ function validate(): string[] {
 async function startReview() {
   startErrors.value = validate();
   if (startErrors.value.length) return;
+  if (session.isRunning) {
+    startErrors.value = ["已有审阅正在进行，请前往「审阅工作台」查看进度。"];
+    return;
+  }
   starting.value = true;
+  // 立即跳转：工作台逐类状态条即刻呈现进度（spec: review-ui 加载反馈），
+  // 审阅在后台执行，不阻塞导航
+  ui.go("workspace");
   try {
     await session.startReview(text.value, [...checked.value]);
-    ui.go("workspace");
   } catch (err) {
-    startErrors.value = [err instanceof Error ? err.message : String(err)];
+    const msg = err instanceof Error ? err.message : String(err);
+    if (session.runList.length === 0) {
+      // 启动即失败（尚未创建任何 run）：回新建页展示错误；run 已创建的情形由 store 加固在工作台标失败
+      ui.go("new");
+      startErrors.value = [msg];
+    }
   } finally {
     starting.value = false;
   }
@@ -108,11 +119,14 @@ async function startReview() {
           <button
             class="primary"
             style="font-size: 14px; padding: 12px 34px"
-            :disabled="starting"
+            :disabled="starting || session.isRunning"
             @click="startReview"
           >
-            {{ starting ? "正在启动…" : "开始审阅 →" }}
+            {{ session.isRunning ? "审阅进行中…" : starting ? "正在启动…" : "开始审阅 →" }}
           </button>
+          <div v-if="session.isRunning" class="info-note" style="margin-top: 12px">
+            已有审阅正在进行，逐类进度与结果实时显示在「审阅工作台」。
+          </div>
           <div v-if="startErrors.length" class="errbox">
             <h5>无法开始审阅 · 请检查以下项</h5>
             <ul>

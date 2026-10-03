@@ -84,12 +84,27 @@ export const useSessionStore = defineStore("session", {
       const orchestrator = new Orchestrator(this.sink(), {
         getApiKey: (cfg) => settings.getApiKey(cfg),
       });
-      await orchestrator.start({
-        text,
-        selectedCategories: categories,
-        modelConfig: model,
-        categoryNameOf: (id) => settings.categoryById(id)?.name ?? id,
-      });
+      try {
+        await orchestrator.start({
+          text,
+          selectedCategories: categories,
+          modelConfig: model,
+          categoryNameOf: (id) => settings.categoryById(id)?.name ?? id,
+        });
+      } catch (e) {
+        // 启动链路中途异常（如钥匙串读取失败）：未终态 run 统一标失败并可重跑，
+        // 避免工作台永久停留「等待」
+        const msg = e instanceof Error ? e.message : String(e);
+        for (const r of Object.values(this.runs)) {
+          if (r.status === "pending" || r.status === "running") {
+            this.runs[r.categoryId] = { ...r, status: "failed", error: msg, completedAt: new Date().toISOString() };
+          }
+        }
+        if (this.session && this.session.status === "running") {
+          this.session = { ...this.session, status: "failed" };
+        }
+        throw e;
+      }
       await this.persistReview();
     },
 
