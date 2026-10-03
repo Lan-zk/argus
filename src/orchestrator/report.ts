@@ -87,7 +87,7 @@ function findingsBrief(findings: Finding[], categories: ReviewCategory[]): strin
 }
 
 async function modelReport(input: ReportInput, counts: Counts): Promise<ReviewReport> {
-  const { models, model } = resolveModel(input.modelConfig!);
+  const { models, model } = await resolveModel(input.modelConfig!);
   const prompt = [
     "你是审阅报告撰写人。基于给定的文档概要与已有 Findings 撰写汇总报告。",
     "约束：",

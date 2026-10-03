@@ -5,10 +5,24 @@ import { defineStore } from "pinia";
 import type { ModelConfig, ProviderKind, ReviewCategory } from "../domain/types";
 import { DEFAULT_CATEGORIES } from "../domain/default-categories";
 import { keyring } from "../lib/keyring";
+import { presetById } from "../domain/presets";
 import { defaultSettings, loadState, saveSettings } from "../lib/persistence";
 
 function uid(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 查找同 Provider 已有配置存入钥匙串的 Key（按配置顺序取第一个命中）。 */
+async function existingKeyFor(models: ModelConfig[], provider: string): Promise<string | null> {
+  // 仅预设 Provider 可复用：服务身份唯一（api.deepseek.com 等）。
+  // 自定义家族（尤其 openai-compatible）不同端点是不同服务，复用会把 Key 泄给无关端点。
+  if (!presetById(provider)) return null;
+  for (const m of models) {
+    if (m.provider !== provider) continue;
+    const key = await keyring.get(m.id);
+    if (key) return key;
+  }
+  return null;
 }
 
 export const useSettingsStore = defineStore("settings", {
@@ -53,6 +67,10 @@ export const useSettingsStore = defineStore("settings", {
     // ---- Models CRUD（spec: settings 模型配置管理）----
     async addModel(input: Omit<ModelConfig, "id">): Promise<ModelConfig> {
       const cfg: ModelConfig = { ...input, id: uid("m") };
+      if (!cfg.apiKey && cfg.provider) {
+        // 同 Provider 复用：把已存 Key 复制到新配置条目，避免删除旧配置影响新配置
+        cfg.apiKey = (await existingKeyFor(this.models, cfg.provider)) ?? undefined;
+      }
       if (cfg.apiKey) {
         await keyring.set(cfg.id, cfg.apiKey);
         cfg.keyringRef = cfg.id;
@@ -87,10 +105,18 @@ export const useSettingsStore = defineStore("settings", {
       await this.persist();
     },
 
-    /** 运行时短路径读取 Key（注入调用参数，不缓存）。 */
+    /** 运行时短路径读取 Key（注入调用参数，不缓存）。回退链：内存 → 本配置钥匙串条目 → 同 Provider 兄弟配置（Key 复用）。 */
     async getApiKey(cfg: ModelConfig): Promise<string> {
       if (cfg.apiKey) return cfg.apiKey;
-      return (await keyring.get(cfg.id)) ?? "";
+      const own = await keyring.get(cfg.id);
+      if (own) return own;
+      const sibling = await existingKeyFor(this.models, cfg.provider);
+      return sibling ?? "";
+    },
+
+    /** 该 Provider 是否已有可复用的 Key（spec: settings 同 Provider 复用 Key）。 */
+    async reusableKey(provider: string): Promise<string | null> {
+      return existingKeyFor(this.models, provider);
     },
 
     // ---- Categories CRUD（spec: settings Review Category 管理）----

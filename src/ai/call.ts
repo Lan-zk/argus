@@ -53,7 +53,7 @@ export async function callFindings(
   userPrompt: string,
   opts: CallOptions,
 ): Promise<ToolFinding[]> {
-  const { models, model } = resolveModel(cfg);
+  const { models, model } = await resolveModel(cfg);
   const messages: Message[] = [{ role: "user", content: userPrompt, timestamp: Date.now() }];
 
   let lastError: AppError | null = null;

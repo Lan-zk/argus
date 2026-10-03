@@ -41,11 +41,13 @@ npm run tauri build   # 产出 .app 与 .dmg
 | --- | --- |
 | Provider | OpenAI / Anthropic / Google / OpenAI-compatible |
 | Model Name | 如 `gpt-4o`、`claude-sonnet-4-5`、`glm-4.7` |
-| API Key | 保存进 **macOS 钥匙串**（数据文件只存引用，不落明文） |
-| Base URL | OpenAI-compatible 必填（如 `https://open.bigmodel.cn/api/paas/v4`） |
+| API Key | 保存进 **macOS 钥匙串**（数据文件只存引用，不落明文）；预设服务唯一必填项 |
+| Base URL | 仅自定义连接需要（如 `https://open.bigmodel.cn/api/paas/v4`）；预设自动内置 |
 | Temperature / Max Tokens / Context Window | 可选；Context Window 用于超长文稿的降级判定 |
 
-3. 点击 **测试连接**：成功显示模型信息；失败显示可读错误与下一步检查建议。
+3. 推荐走**预设快速配置**：选一个预设服务（DeepSeek / Kimi / 智谱 / MiniMax / 阿里 Qwen / OpenAI / Anthropic / Google / OpenRouter 等 29 个）→ 只粘贴 **API Key** 一项 → 离开输入框自动检索模型列表（含离线静态目录与推荐默认）→ 下拉选模型保存。同一服务加第二个模型时自动复用已存 Key。
+4. 任意 OpenAI-compatible 端点（含 Ollama / LM Studio 等本地服务）走 **自定义连接**：填 Base URL + Key，可一键「检索模型」或手动输入模型 ID。
+5. 点击 **测试连接**：成功显示模型信息；失败显示可读错误与下一步检查建议。
 4. 回到 **新建审阅**：粘贴文稿（≤ 30 000 字符）→ 勾选类别 → **开始审阅**。
 
 内置 6 个默认启用类别（逻辑 / 论点 / 论证 / 修辞 / 结构 / 清晰度）与 1 个默认禁用类别（演讲表达），Prompt 均可在设置中修改，修改互不影响，可单类重跑。

@@ -13,7 +13,7 @@ import { useSettingsStore } from "../stores/settings";
 import { useSessionStore } from "../stores/session";
 
 interface SpikeRequest {
-  phase: "run" | "verify_restore";
+  phase: "run" | "verify_restore" | "model_config";
   baseUrl: string;
   model: string;
   apiKey: string;
@@ -54,6 +54,7 @@ export async function runDevSpikeIfRequested(): Promise<void> {
   if (!req) return;
   if (req.phase === "run") await runPhase(req);
   else if (req.phase === "verify_restore") await verifyRestorePhase();
+  else if (req.phase === "model_config") await modelConfigPhase(req);
 }
 
 async function runPhase(req: SpikeRequest): Promise<void> {
@@ -159,6 +160,66 @@ async function runPhase(req: SpikeRequest): Promise<void> {
   }
   result.finishedAt = new Date().toISOString();
   await writeResult("spike-result.json", result);
+}
+
+/** model-config-ux 联调（tasks 4.1）：发现层 + Key 复用 + 测试连接，走真实应用运行时与 tauri fetch 通道。 */
+async function modelConfigPhase(req: SpikeRequest): Promise<void> {
+  const settings = useSettingsStore();
+  const result: Record<string, unknown> = { phase: "model_config", startedAt: new Date().toISOString() };
+  try {
+    const { catalogModels, fetchRemoteModels, mergeModels } = await import("../ai/model-discovery");
+    // ① 预设静态目录（离线）
+    const catalog = await catalogModels("deepseek");
+    result.presetCatalog = {
+      ok: catalog.length >= 2,
+      count: catalog.length,
+      hasRecommended: catalog.some((m) => m.recommended),
+      hasCtxMeta: catalog.every((m) => (m.contextWindow ?? 0) > 0),
+    };
+    // ② 自定义连接实时检索（真实 tauri fetch 通道 → 本地 mock /models）
+    const remote = await fetchRemoteModels(customInput(req));
+    result.customFetch = remote.ok
+      ? { ok: true, ids: remote.models.map((m) => m.id) }
+      : { ok: false, reason: remote.reason };
+    // ③ 合并去重
+    const merged = mergeModels(catalog, remote.ok ? [{ id: "deepseek-flash", source: "remote" }, ...remote.models] : []);
+    result.mergeDedupe = {
+      ok: merged.filter((m) => m.id === "deepseek-flash").length === 1 && merged.length > catalog.length,
+      total: merged.length,
+    };
+    // ④ 保存自定义配置 → 测试连接（mock chat）→ 清理
+    const cfg = await settings.addModel({
+      provider: "openai-compatible",
+      model: "mock-chat",
+      apiKey: req.apiKey,
+      baseUrl: req.baseUrl,
+    });
+    const { testConnection } = await import("../ai/test-connection");
+    const key = await settings.getApiKey(cfg);
+    const test = await testConnection(cfg, key);
+    result.customTest = test.ok ? { ok: true, model: test.model } : { ok: false, error: test.error.message };
+    await settings.deleteModel(cfg.id);
+    // ⑤ 同 Provider Key 复用（预设 deepseek，Key 不触网）
+    const a = await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "sk-spike-reuse" });
+    const b = await settings.addModel({ provider: "deepseek", model: "deepseek-v4-pro" });
+    const keyring = (await import("./keyring")).keyring;
+    result.keyReuse = {
+      ok: (await keyring.get(b.id)) === "sk-spike-reuse" && (await settings.getApiKey(b)) === "sk-spike-reuse",
+      secondHasOwnEntry: !!b.keyringRef,
+    };
+    await settings.deleteModel(a.id);
+    await settings.deleteModel(b.id);
+    result.ok = true;
+  } catch (e) {
+    result.ok = false;
+    result.error = e instanceof Error ? `${e.name}: ${e.message}` : JSON.stringify(e);
+  }
+  result.finishedAt = new Date().toISOString();
+  await writeResult("spike-result-model-config.json", result);
+}
+
+function customInput(req: SpikeRequest): import("../ai/model-discovery").FetchModelsInput {
+  return { baseUrl: req.baseUrl, apiKey: req.apiKey, family: "openai-completions" };
 }
 
 /** 重启后：记录恢复状态并验证「清除并新建」。 */

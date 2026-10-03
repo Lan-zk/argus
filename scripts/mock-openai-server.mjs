@@ -60,6 +60,18 @@ function firstFindingId(bodyText) {
 }
 
 const server = http.createServer((req, res) => {
+  // OpenAI 兼容模型列表端点（model-config-ux 联调用）
+  if (req.url?.includes("/models")) {
+    const auth = req.headers["authorization"] || "";
+    if (!/^Bearer \S+/.test(auth)) {
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request_error", code: "invalid_api_key" } }));
+      return;
+    }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ object: "list", data: [{ id: "mock-chat" }, { id: "mock-pro" }, { id: "mock-flash" }] }));
+    return;
+  }
   if (req.url === "/test") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, server: "argus-mock" }));

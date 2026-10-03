@@ -1,12 +1,15 @@
 <script setup lang="ts">
-// Settings 页（spec: settings 全部场景）。
-// Models：CRUD + 默认 + 测试连接（可读错误）；Categories：CRUD/启停/默认选中/排序/复制/Prompt 编辑器
-//（上下文变量提示）；内置 7 默认类别种子；钥匙串诊断。
-import { ref } from "vue";
+// Settings 页（spec: settings 全部场景 + model-config-ux）。
+// Models 新增两步流程：pick（预设卡片/自定义连接）→ configure（预设只填 Key + 模型下拉；自定义全字段）。
+// Key 失焦自动检索 + 手动刷新；同 Provider 复用钥匙串 Key；测试连接复用现有错误分类。
+import { computed, ref } from "vue";
 import { useSettingsStore } from "../stores/settings";
-import { PROVIDERS, PROVIDER_ZH } from "../domain/types";
-import type { ModelConfig, ProviderKind } from "../domain/types";
+import { PROVIDERS, PROVIDER_ZH, isFourFamily } from "../domain/types";
+import type { DiscoveredModel, ModelConfig } from "../domain/types";
+import { GROUP_ZH, MODEL_PRESETS, displayProviderName, presetById } from "../domain/presets";
+import type { ModelPreset, PresetGroup } from "../domain/presets";
 import { DEFAULT_CATEGORIES } from "../domain/default-categories";
+import { catalogModels, customFetchInput, fetchRemoteModels, mergeModels, presetFetchInput } from "../ai/model-discovery";
 import { testConnection } from "../ai/test-connection";
 import { keyring } from "../lib/keyring";
 
@@ -21,55 +24,209 @@ async function restoreBuiltinCategories() {
   await settings.persist();
 }
 
-// ---- Models ----
-const editingModel = ref<Partial<ModelConfig> & { id?: string } | null>(null);
-const testResult = ref<Record<string, { ok: boolean; text: string }>>({});
-const testing = ref<Record<string, boolean>>({});
+// ============ Models：新增两步流程（spec: settings 模型配置管理） ============
+type AddFlow =
+  | null // 未在新增
+  | { kind: "pick" } // 第一步：选服务
+  | { kind: "preset"; preset: ModelPreset } // 第二步：预设精简表单
+  | { kind: "custom"; local?: boolean }; // 第二步：自定义连接全字段
 
-function providerOf(p: string): ProviderKind {
-  return (PROVIDERS as string[]).includes(p) ? (p as ProviderKind) : "openai-compatible";
+const addFlow = ref<AddFlow>(null);
+const presetGroups = computed(() => {
+  const groups: PresetGroup[] = ["cn", "global", "aggregator"];
+  return groups.map((g) => ({ key: g, label: GROUP_ZH[g], items: MODEL_PRESETS.filter((p) => p.group === g) }));
+});
+
+function startAdd() {
+  addFlow.value = { kind: "pick" };
+}
+function pickPreset(preset: ModelPreset) {
+  addFlow.value = { kind: "preset", preset };
+  void initPresetConfigure(preset);
+}
+function pickCustom(local = false) {
+  addFlow.value = { kind: "custom", local };
+  void initCustomConfigure(local);
 }
 
-function needsBaseUrl(p: ProviderKind) {
+// ---- 预设 configure 状态 ----
+const presetKey = ref("");
+const presetKeyReused = ref(false); // 已复用已存 Key（跳过输入）
+const showKeyInput = ref(true); // 「更换 Key」折叠
+const presetModels = ref<DiscoveredModel[]>([]);
+const presetModelId = ref("");
+const fetching = ref(false);
+const fetchError = ref("");
+const presetAdvanced = ref(false);
+const presetTemp = ref<number | undefined>(undefined);
+const presetMaxTokens = ref<number | undefined>(undefined);
+
+let fetchSeq = 0; // 竞态守卫：仅最后一次检索生效
+
+async function initPresetConfigure(preset: ModelPreset) {
+  presetKey.value = "";
+  presetKeyReused.value = false;
+  showKeyInput.value = true;
+  presetModelId.value = "";
+  fetchError.value = "";
+  presetAdvanced.value = false;
+  presetTemp.value = undefined;
+  presetMaxTokens.value = undefined;
+  // 静态目录先行（离线可用，spec: ai-runtime 预设服务离线展示模型目录）
+  presetModels.value = await catalogModels(preset.id);
+  presetModelId.value = preset.recommendedModel;
+  // 同 Provider 复用 Key：存在则跳过输入直接检索（spec: settings 同 Provider 复用 Key）
+  const reused = await settings.reusableKey(preset.id);
+  if (reused) {
+    presetKeyReused.value = true;
+    showKeyInput.value = false;
+    await doFetchModels();
+  }
+}
+
+async function effectiveKey(): Promise<string> {
+  if (presetKey.value.trim()) return presetKey.value.trim();
+  return (await settings.reusableKey(addFlow.value?.kind === "preset" ? addFlow.value.preset.id : "")) ?? "";
+}
+
+/** 触发模型检索（自动/手动共用）：静态目录 + 实时检索合并。 */
+async function doFetchModels() {
+  if (addFlow.value?.kind !== "preset") return;
+  const seq = ++fetchSeq;
+  fetching.value = true;
+  fetchError.value = "";
+  const key = await effectiveKey();
+  const input = await presetFetchInput(addFlow.value.preset.id, key);
+  if (!input || !key) {
+    fetching.value = false;
+    return; // 无 Key：保留静态目录即可
+  }
+  const remote = await fetchRemoteModels(input);
+  if (seq !== fetchSeq) return; // 已有更新的检索
+  fetching.value = false;
+  if (remote.ok) {
+    presetModels.value = mergeModels(
+      presetModels.value.filter((m) => m.source === "catalog"),
+      remote.models,
+    );
+    if (!presetModelId.value || !presetModels.value.some((m) => m.id === presetModelId.value)) {
+      presetModelId.value = addFlow.value.preset.recommendedModel;
+    }
+  } else {
+    // 检索失败：弱提示，不阻断静态目录与手动输入（spec: ai-runtime 检索失败可降级）
+    fetchError.value = remote.reason;
+  }
+}
+
+/** Key 失焦且非空 → 300ms 防抖自动检索（spec: settings Key 失焦自动检索并可手动刷新）。 */
+let blurTimer: ReturnType<typeof setTimeout> | null = null;
+function onKeyBlur() {
+  if (blurTimer) clearTimeout(blurTimer);
+  if (!presetKey.value.trim()) return;
+  presetKeyReused.value = false;
+  blurTimer = setTimeout(() => void doFetchModels(), 300);
+}
+
+async function savePreset() {
+  if (addFlow.value?.kind !== "preset" || !presetModelId.value) return;
+  const key = presetKey.value.trim() || (presetKeyReused.value ? await effectiveKey() : "");
+  const catalogModel = presetModels.value.find((m) => m.id === presetModelId.value);
+  await settings.addModel({
+    provider: addFlow.value.preset.id,
+    model: presetModelId.value,
+    apiKey: key,
+    contextWindow: catalogModel?.contextWindow,
+    temperature: presetTemp.value,
+    maxTokens: presetMaxTokens.value,
+  });
+  addFlow.value = null;
+}
+
+// ---- 自定义连接 configure 状态 ----
+const customForm = ref<Partial<ModelConfig> & { id?: string }>({});
+const customModels = ref<DiscoveredModel[]>([]);
+const customFetching = ref(false);
+const customFetchError = ref("");
+const customAdvanced = ref(false);
+
+async function initCustomConfigure(local: boolean) {
+  customForm.value = {
+    provider: "openai-compatible",
+    model: "",
+    apiKey: "",
+    baseUrl: local ? "http://localhost:11434/v1" : "",
+  };
+  customModels.value = [];
+  customFetchError.value = "";
+  customAdvanced.value = false;
+}
+
+function needsBaseUrl(p: string) {
   return p === "openai-compatible";
 }
 
-async function saveModel() {
-  const m = editingModel.value;
-  if (!m || !m.model || !m.provider) return;
-  if (needsBaseUrl(m.provider as ProviderKind) && !m.baseUrl) return;
-  if (m.id) {
-    const patch: Partial<ModelConfig> = {
-      provider: m.provider as ProviderKind,
-      model: m.model,
-      baseUrl: m.baseUrl,
-      temperature: m.temperature,
-      maxTokens: m.maxTokens,
-      contextWindow: m.contextWindow,
-    };
-    // Key 仅在用户输入了新值时更新（编辑界面脱敏回显，不回显完整 Key）
-    if (m.apiKey) patch.apiKey = m.apiKey;
-    await settings.updateModel(m.id, patch);
+async function fetchCustomModels() {
+  const f = customForm.value;
+  if (!f.baseUrl?.trim()) return;
+  customFetching.value = true;
+  customFetchError.value = "";
+  const remote = await fetchRemoteModels(customFetchInput({ provider: f.provider ?? "openai-compatible", baseUrl: f.baseUrl }, f.apiKey ?? ""));
+  customFetching.value = false;
+  if (remote.ok) {
+    customModels.value = remote.models;
+    if (!f.model && remote.models.length) f.model = remote.models[0].id;
   } else {
-    await settings.addModel({
-      provider: m.provider as ProviderKind,
-      model: m.model,
-      apiKey: m.apiKey ?? "",
-      baseUrl: m.baseUrl,
-      temperature: m.temperature,
-      maxTokens: m.maxTokens,
-      contextWindow: m.contextWindow,
-    });
+    customFetchError.value = remote.reason;
   }
-  editingModel.value = null;
 }
+
+async function saveCustom() {
+  const f = customForm.value;
+  if (!f.model || !f.provider) return;
+  if (needsBaseUrl(f.provider) && !f.baseUrl) return;
+  await settings.addModel({
+    provider: f.provider,
+    model: f.model,
+    apiKey: f.apiKey ?? "",
+    baseUrl: f.baseUrl,
+    temperature: f.temperature,
+    maxTokens: f.maxTokens,
+    contextWindow: f.contextWindow,
+  });
+  addFlow.value = null;
+}
+
+// ---- 编辑已有配置（保持旧表单，脱敏回显） ----
+const editingModel = ref<Partial<ModelConfig> & { id?: string } | null>(null);
 
 function editModel(id: string) {
   const m = settings.models.find((x) => x.id === id);
   if (!m) return;
   // 脱敏：不回显完整 Key（spec: app-persistence 界面不回显完整 Key）
-  editingModel.value = { ...m, apiKey: m.keyringRef ? "" : "" };
+  editingModel.value = { ...m, apiKey: "" };
+  addFlow.value = null;
 }
+
+async function saveModel() {
+  const m = editingModel.value;
+  if (!m || !m.model || !m.provider) return;
+  if (needsBaseUrl(m.provider) && !m.baseUrl) return;
+  const patch: Partial<ModelConfig> = {
+    provider: m.provider,
+    model: m.model,
+    baseUrl: m.baseUrl,
+    temperature: m.temperature,
+    maxTokens: m.maxTokens,
+    contextWindow: m.contextWindow,
+  };
+  if (m.apiKey) patch.apiKey = m.apiKey;
+  await settings.updateModel(m.id!, patch);
+  editingModel.value = null;
+}
+
+// ---- 测试连接 ----
+const testResult = ref<Record<string, { ok: boolean; text: string }>>({});
+const testing = ref<Record<string, boolean>>({});
 
 async function runTest(cfg: ModelConfig) {
   testing.value = { ...testing.value, [cfg.id]: true };
@@ -82,6 +239,10 @@ async function runTest(cfg: ModelConfig) {
       : { ok: false, text: res.error.message },
   };
   testing.value = { ...testing.value, [cfg.id]: false };
+}
+
+function providerLabel(m: ModelConfig): string {
+  return isFourFamily(m.provider) ? PROVIDER_ZH[m.provider] : displayProviderName(m.provider);
 }
 
 // ---- Categories ----
@@ -99,6 +260,7 @@ void keyring.probe("diagnostic").then((r) => {
 });
 
 const CONTEXT_VARS = ["document", "blocks", "category", "output_schema"];
+void presetById;
 </script>
 
 <template>
@@ -111,9 +273,10 @@ const CONTEXT_VARS = ["document", "blocks", "category", "output_schema"];
           <span class="hint">系统不内置 API Key · Key 存系统钥匙串，数据文件不含明文（PRD §21–23）</span>
         </div>
 
+        <!-- 已有配置列表 -->
         <div v-for="m in settings.models" :key="m.id" class="model-row" :class="{ 'def-model': m.isDefault }">
           <div class="mr-top">
-            <span class="microlabel">{{ PROVIDER_ZH[m.provider] }}</span>
+            <span class="microlabel">{{ providerLabel(m) }}</span>
             <b>{{ m.model }}</b>
             <span v-if="m.baseUrl" class="session-chip">{{ m.baseUrl }}</span>
             <span v-if="m.isDefault" class="microlabel" style="color: var(--red)">默认</span>
@@ -125,32 +288,185 @@ const CONTEXT_VARS = ["document", "blocks", "category", "output_schema"];
               {{ testing[m.id] ? "测试中…" : "测试连接" }}
             </button>
           </div>
-          <div
-            v-if="testResult[m.id]"
-            class="test-line"
-            :class="testResult[m.id].ok ? 'ok' : 'bad'"
-          >{{ testResult[m.id].text }}</div>
+          <div v-if="testResult[m.id]" class="test-line" :class="testResult[m.id].ok ? 'ok' : 'bad'">
+            {{ testResult[m.id].text }}
+          </div>
         </div>
 
-        <div v-if="editingModel" class="model-row" style="border: 2px solid var(--ink)">
+        <!-- 第一步：选服务（pick） -->
+        <div v-if="addFlow?.kind === 'pick'" class="model-row" style="border: 2px solid var(--ink)">
+          <div class="pick-head">
+            <span class="microlabel">选择服务</span>
+            <span class="microlabel" style="margin-left: auto; color: var(--ink35)">预设自动填充端点与协议，只需填 API Key</span>
+          </div>
+          <div v-for="g in presetGroups" :key="g.key" class="preset-group">
+            <div class="microlabel" style="margin-bottom: 8px">{{ g.label }}</div>
+            <div class="preset-grid">
+              <button v-for="p in g.items" :key="p.id" class="preset-card" @click="pickPreset(p)">
+                <b>{{ p.name }}</b>
+                <span v-if="p.region" class="preset-region">{{ p.region }}</span>
+                <span class="preset-models">{{ p.recommendedModel }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="preset-group" style="margin-top: 14px; padding-top: 14px; border-top: var(--hair)">
+            <div class="preset-grid">
+              <button class="preset-card" @click="pickCustom(false)">
+                <b>自定义连接</b>
+                <span class="preset-models">任意 OpenAI-compatible 端点</span>
+              </button>
+              <button class="preset-card" @click="pickCustom(true)">
+                <b>本地模型</b>
+                <span class="preset-models">Ollama / LM Studio 等</span>
+              </button>
+            </div>
+          </div>
+          <div class="mr-top" style="border-top: var(--hair)">
+            <button class="mini" @click="addFlow = null">取消</button>
+          </div>
+        </div>
+
+        <!-- 第二步 A：预设 configure（唯一必填 API Key + 模型下拉） -->
+        <div v-else-if="addFlow?.kind === 'preset'" class="model-row" style="border: 2px solid var(--ink)">
+          <div class="mr-top" style="border-bottom: var(--hair)">
+            <b style="font-size: 14px">{{ addFlow.preset.name }}</b>
+            <span v-if="addFlow.preset.region" class="session-chip">{{ addFlow.preset.region }}</span>
+            <span class="session-chip">{{ presetModels.length ? `端点已内置 · 目录 ${presetModels.filter(m => m.source === 'catalog').length} 个模型` : "端点已内置" }}</span>
+            <span v-if="presetKeyReused" class="microlabel" style="color: var(--ink50)">✓ 已复用已保存的 Key</span>
+          </div>
+          <div class="mr-grid" style="grid-template-columns: repeat(2, 1fr)">
+            <div class="fg" style="grid-column: span 2" v-if="showKeyInput">
+              <span class="microlabel">API Key（唯一必填）</span>
+              <input
+                v-model="presetKey"
+                type="password"
+                placeholder="粘贴 API Key，离开输入框自动检索模型"
+                autocomplete="off"
+                @blur="onKeyBlur"
+              />
+            </div>
+            <div class="fg" style="grid-column: span 2" v-else>
+              <button class="mini" @click="showKeyInput = true">更换 Key</button>
+            </div>
+            <div class="fg" style="grid-column: span 2">
+              <span class="microlabel">
+                模型
+                <template v-if="fetching">· ◐ 检索中…</template>
+                <template v-else-if="fetchError">· ⚠ {{ fetchError }}</template>
+                <template v-else>· 共 {{ presetModels.length }} 个</template>
+              </span>
+              <select v-model="presetModelId">
+                <option v-for="m in presetModels" :key="m.id" :value="m.id">
+                  {{ m.id }}{{ m.recommended ? "（推荐）" : "" }}{{ m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k ctx` : "" }}{{ m.source === "remote" ? " · 在线" : "" }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="mr-top" style="border-top: var(--hair); flex-wrap: wrap; gap: 8px">
+            <button class="mini" :disabled="fetching" @click="doFetchModels">↻ 重新检索</button>
+            <button class="mini" @click="presetAdvanced = !presetAdvanced">{{ presetAdvanced ? "收起高级" : "高级" }}</button>
+            <span style="flex: 1"></span>
+            <button class="mini" @click="addFlow = null">取消</button>
+            <button
+              class="mini primary"
+              :disabled="!presetModelId || (!presetKey.trim() && !presetKeyReused)"
+              @click="savePreset"
+            >保存</button>
+          </div>
+          <div v-if="presetAdvanced" class="mr-grid" style="grid-template-columns: repeat(3, 1fr)">
+            <div class="fg">
+              <span class="microlabel">Temperature</span>
+              <input v-model.number="presetTemp" type="number" step="0.1" min="0" max="2" placeholder="默认" />
+            </div>
+            <div class="fg">
+              <span class="microlabel">Max Tokens</span>
+              <input v-model.number="presetMaxTokens" type="number" min="256" placeholder="默认" />
+            </div>
+            <div class="fg">
+              <span class="microlabel">Context Window</span>
+              <input
+                :value="presetModels.find(m => m.id === presetModelId)?.contextWindow ?? ''"
+                type="number"
+                disabled
+                placeholder="目录元数据"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- 第二步 B：自定义连接 configure（全字段 + 检索/手动并存） -->
+        <div v-else-if="addFlow?.kind === 'custom'" class="model-row" style="border: 2px solid var(--ink)">
+          <div class="mr-top" style="border-bottom: var(--hair)">
+            <b style="font-size: 14px">{{ addFlow.local ? "本地模型" : "自定义连接" }}</b>
+            <span class="session-chip">兼容任意 OpenAI-compatible 端点</span>
+          </div>
           <div class="mr-grid">
             <div class="fg">
-              <span class="microlabel">Provider</span>
-              <select v-model="editingModel.provider">
+              <span class="microlabel">Provider 家族</span>
+              <select v-model="customForm.provider">
                 <option v-for="p in PROVIDERS" :key="p" :value="p">{{ PROVIDER_ZH[p] }}</option>
               </select>
             </div>
             <div class="fg g2">
+              <span class="microlabel">Base URL</span>
+              <input v-model="customForm.baseUrl" type="text" placeholder="https://…/api/paas/v4" />
+            </div>
+            <div class="fg g2">
+              <span class="microlabel">API Key</span>
+              <input v-model="customForm.apiKey" type="password" placeholder="sk-…（本地服务可留空）" autocomplete="off" />
+            </div>
+            <div class="fg g2">
+              <span class="microlabel">
+                Model
+                <template v-if="customFetching">· ◐ 检索中…</template>
+                <template v-else-if="customFetchError">· ⚠ {{ customFetchError }}</template>
+              </span>
+              <input v-model="customForm.model" type="text" list="custom-model-list" placeholder="手动输入，或检索后选择" />
+              <datalist id="custom-model-list">
+                <option v-for="m in customModels" :key="m.id" :value="m.id" />
+              </datalist>
+            </div>
+            <div class="fg">
+              <span class="microlabel">Temperature</span>
+              <input v-model.number="customForm.temperature" type="number" step="0.1" min="0" max="2" placeholder="默认" />
+            </div>
+            <div class="fg">
+              <span class="microlabel">Max Tokens</span>
+              <input v-model.number="customForm.maxTokens" type="number" min="256" placeholder="默认" />
+            </div>
+          </div>
+          <div class="mr-top" style="border-top: var(--hair)">
+            <button class="mini" :disabled="customFetching || !customForm.baseUrl" @click="fetchCustomModels">检索模型</button>
+            <span style="flex: 1"></span>
+            <button class="mini" @click="addFlow = null">取消</button>
+            <button class="mini primary" :disabled="!customForm.model" @click="saveCustom">保存</button>
+          </div>
+        </div>
+
+        <!-- 编辑已有配置（旧表单） -->
+        <div v-if="editingModel" class="model-row" style="border: 2px solid var(--ink)">
+          <div class="mr-grid">
+            <div class="fg" v-if="!editingModel.id">
+              <span class="microlabel">Provider</span>
+              <select v-model="editingModel.provider" disabled>
+                <option v-for="p in PROVIDERS" :key="p" :value="p">{{ PROVIDER_ZH[p] }}</option>
+              </select>
+            </div>
+            <div class="fg" v-else>
+              <span class="microlabel">Provider</span>
+              <input :value="providerLabel(editingModel as ModelConfig)" type="text" disabled />
+            </div>
+            <div class="fg g2">
               <span class="microlabel">Model Name</span>
-              <input v-model="editingModel.model" type="text" placeholder="如 gpt-4o / claude-sonnet-4-5 / glm-4.7" />
+              <input v-model="editingModel.model" type="text" />
             </div>
             <div class="fg g2">
               <span class="microlabel">API Key {{ editingModel.id ? "（留空=不修改）" : "" }}</span>
               <input v-model="editingModel.apiKey" type="password" placeholder="sk-…" autocomplete="off" />
             </div>
-            <div class="fg g2" v-if="needsBaseUrl(providerOf(String(editingModel.provider)))">
+            <div class="fg g2" v-if="needsBaseUrl(String(editingModel.provider))">
               <span class="microlabel">Base URL</span>
-              <input v-model="editingModel.baseUrl" type="text" placeholder="https://…/api/paas/v4" />
+              <input v-model="editingModel.baseUrl" type="text" />
             </div>
             <div class="fg">
               <span class="microlabel">Temperature</span>
@@ -171,10 +487,10 @@ const CONTEXT_VARS = ["document", "blocks", "category", "output_schema"];
           </div>
         </div>
 
-        <button @click="editingModel = { provider: 'openai-compatible' }">＋ 新增模型配置</button>
+        <button v-if="!addFlow" @click="startAdd">＋ 新增模型配置</button>
         <div class="info-note">
           {{ keyringStatus || "钥匙串诊断中…" }} ·
-          Key 通过系统安全存储保存；日志与错误信息不含完整 Key。
+          Key 通过系统安全存储保存；日志与错误信息不含完整 Key。预设服务只需填 API Key，模型列表自动检索；同一服务的第二个模型自动复用已存 Key。
         </div>
       </div>
 
@@ -239,3 +555,15 @@ const CONTEXT_VARS = ["document", "blocks", "category", "output_schema"];
     </div>
   </section>
 </template>
+
+<style scoped>
+.pick-head{display:flex;align-items:center;padding:12px 16px}
+.preset-group{padding:10px 16px 4px}
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.preset-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;text-align:left;background:var(--card)}
+.preset-card:hover{background:var(--ink)}
+.preset-card:hover .preset-models,.preset-card:hover .preset-region{color:var(--paper2)}
+.preset-card b{font-size:13px}
+.preset-region{font-size:9.5px;color:var(--ink50);letter-spacing:.06em}
+.preset-models{font-family:var(--mono);font-size:9.5px;color:var(--ink35);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>

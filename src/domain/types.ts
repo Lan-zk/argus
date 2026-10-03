@@ -11,9 +11,19 @@ export const SEVERITY_ZH: Record<Severity, string> = {
   low: "可优化",
 };
 
-export type ProviderKind = "openai" | "anthropic" | "google" | "openai-compatible";
+/**
+ * Provider 标识：四个自定义连接家族，或任一 pi-ai 内置 Provider id（预设服务，见 domain/presets.ts）。
+ * 值域开放（string 联合），避免 types 与 presets 循环依赖；预设 id 由快照测试锁定。
+ */
+export type FourFamily = "openai" | "anthropic" | "google" | "openai-compatible";
+export type ProviderKind = FourFamily | (string & {});
 
-export const PROVIDERS: ProviderKind[] = ["openai", "anthropic", "google", "openai-compatible"];
+/** 自定义连接可选的家族。 */
+export const PROVIDERS: FourFamily[] = ["openai", "anthropic", "google", "openai-compatible"];
+
+export function isFourFamily(p: string): p is FourFamily {
+  return (PROVIDERS as string[]).includes(p);
+}
 
 export const PROVIDER_ZH: Record<ProviderKind, string> = {
   openai: "OpenAI",
@@ -36,6 +46,18 @@ export interface ModelConfig {
   isDefault?: boolean;
   /** 模型上下文窗口（token），用于长文降级判定；用户可不填，走 Provider 默认估算。 */
   contextWindow?: number;
+}
+
+/** 模型发现结果（spec: ai-runtime 模型发现）：静态目录或实时检索得到的可选模型。 */
+export interface DiscoveredModel {
+  id: string;
+  name?: string;
+  contextWindow?: number;
+  maxTokens?: number;
+  /** 来源：静态目录（离线）或服务端检索。 */
+  source: "catalog" | "remote";
+  /** 预设推荐默认模型标记。 */
+  recommended?: boolean;
 }
 
 /** PRD §16 */

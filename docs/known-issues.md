@@ -35,3 +35,12 @@
 5. **钥匙串首访授权**：应用首次写入钥匙串时 macOS 可能弹出授权确认（本次自动化运行未遇到，debug 二进制直接成功）。
 6. **vitest 沙箱限制**：本机命令沙箱会拦截 vitest worker 的 loopback 连接，涉及本地网络的测试以拦截式 mock 表达（真实 loopback 已在 Node 脚本与本次应用内联调中验证）。
 7. **Streaming**：MVP 按设计决策使用非流式 `complete()`；tauri fetch 通道的流式（SSE）在 mock 层已工作（pi-ai 以 stream:true 请求并被正确解析），后续可作为增强开启（PRD §50）。
+
+## model-config-ux 联调补充（2026-10-03）
+
+8. **预设清单数量勘误**：立项时提案写「26 个」，实施时按「pi-ai 目录 + 纯 API Key + 固定端点」标准逐个核对后为 **29 个**（国内 15 / 国际 12 / 聚合 2）；`opencode`/`opencode-go` 因无固定 baseUrl（动态网关）剔除。
+9. **预设静态目录会随 pi-ai 升级漂移**：快照测试（presets.test.ts）在升级 pi-ai 后需更新推荐模型；检索合并以服务端为准覆盖可用性。
+10. **/models 检索的端点差异**：部分服务的 baseUrl 不以 /v1 结尾（如 Fireworks /inference），直接追加 /models 可能 404 → 按「检索失败可降级」处理（静态目录 + 手动输入兜底），不阻断配置。
+11. **Google 家族不支持 OpenAI 兼容 /models**：在线检索对 Google 预设返回可读降级提示，模型选择依赖静态目录（22 个）与手动输入。
+12. **自定义家族不跨端点复用 Key**：openai-compatible 不同 BaseURL 视为不同服务，Key 复用仅限预设 Provider（服务身份唯一），防止 Key 泄给无关端点（有单测锁定）。
+13. **应用内联调通过**（model_config 阶段）：预设目录离线可用、真实 tauri fetch 通道 /models 检索、合并去重、测试连接、同 Provider Key 复用（第二条配置获得独立钥匙串条目副本）全部通过。

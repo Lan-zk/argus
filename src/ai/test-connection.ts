@@ -16,7 +16,7 @@ export async function testConnection(
   apiKey: string,
   signal?: AbortSignal,
 ): Promise<TestResult> {
-  const { models, model } = resolveModel(cfg);
+  const { models, model } = await resolveModel(cfg);
   try {
     const assistant = await models.complete(
       model,

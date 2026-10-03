@@ -4,7 +4,7 @@
 
 import type { DocumentBlock, ModelConfig } from "../domain/types";
 import { renderStructuralOutline } from "../domain/prompts";
-import { DEFAULT_CONTEXT_WINDOWS } from "./client";
+import { defaultContextWindow } from "./client";
 
 /** 估算 token 数：CJK 字符 ≈ 0.55 token/字，非 CJK ≈ 0.25 token/字符。 */
 export function estimateTokens(text: string): number {
@@ -40,7 +40,7 @@ export function shouldDegrade(
   numberedDocumentText: string,
   outlineText: string,
 ): DegradeDecision {
-  const contextWindow = cfg.contextWindow ?? DEFAULT_CONTEXT_WINDOWS[cfg.provider];
+  const contextWindow = cfg.contextWindow ?? defaultContextWindow(cfg.provider);
   const estimatedTokens = estimateCallTokens({
     documentText: numberedDocumentText,
     outlineText,
