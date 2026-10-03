@@ -200,7 +200,7 @@ void SAMPLE_DOC;
       <button @click="session.showRestoreBanner = false">继续查看</button>
     </div>
 
-    <!-- 状态栏（PRD §47） -->
+    <!-- 状态栏 -->
     <div class="ws-statusbar">
       <span class="ws-stat">文档字数<b>{{ session.wordCount }}</b></span>
       <span class="ws-stat">已选类别<b>{{ session.session?.selectedCategoryIds.length ?? 0 }}</b></span>
@@ -251,7 +251,7 @@ void SAMPLE_DOC;
         />
         <div v-else class="ws-empty">
           <h3>还没有进行审阅</h3>
-          <p>回到「新建审阅」粘贴文稿并选择类别后开始。审阅过程中原文在此只读展示，批注定位基于行号 + 内容 + hash 三信号。</p>
+          <p>回到「新建审阅」粘贴文稿并选择类别后开始。原文在此只读展示，点击批注可定位到对应原文位置。</p>
         </div>
       </div>
 

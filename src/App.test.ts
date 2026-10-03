@@ -32,4 +32,18 @@ describe("三页骨架", () => {
     expect(tabs[0].classes()).toContain("on");
     w.unmount();
   });
+
+  it("三页渲染文案不含开发侧信息（MVP/PRD/§）（spec: review-ui 文案面向使用者）", async () => {
+    const w = mount(App, { global: { plugins: [createPinia()] } });
+    const ui = useUiStore();
+    for (const page of ["new", "workspace", "settings"] as const) {
+      ui.go(page);
+      await new Promise((r) => setTimeout(r, 0));
+      const text = document.body.textContent ?? "";
+      for (const kw of ["MVP", "PRD", "§"]) {
+        expect(text, `页面 ${page} 含开发侧信息「${kw}」`).not.toContain(kw);
+      }
+    }
+    w.unmount();
+  });
 });

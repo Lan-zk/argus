@@ -296,7 +296,7 @@ void presetById;
       <div class="set-sec">
         <div class="sec-head">
           <span class="n">3.1</span><h2>Models 模型配置</h2>
-          <span class="hint">系统不内置 API Key · Key 存系统钥匙串，数据文件不含明文（PRD §21–23）</span>
+          <span class="hint">系统不内置 API Key · Key 存系统钥匙串，数据文件不含明文</span>
         </div>
 
         <!-- 已有配置列表 -->
@@ -570,7 +570,7 @@ void presetById;
       <div class="set-sec">
         <div class="sec-head">
           <span class="n">3.2</span><h2>Review Categories 审阅类别</h2>
-          <span class="hint">每类独立 Prompt · 修改互不影响（PRD §15–17 §45）</span>
+          <span class="hint">每类独立 Prompt · 修改互不影响</span>
         </div>
 
         <div v-for="(c, i) in [...settings.categories].sort((a, b) => a.order - b.order)" :key="c.id" class="cat-set-row">

@@ -1,6 +1,7 @@
 // 内置 7 个默认 Review Category（spec: settings / PRD §14）。
 // 6 个默认启用（逻辑/论点/论证/修辞/结构/清晰度）+ 1 个默认禁用（演讲表达）。
-// Prompt 基于原型 DEFAULT_CATS 扩写：检查项、severity 判断规则、引用与 hash 规则引用。
+// 类别 Prompt 仅含审阅要求与 severity 校准；数据格式契约由系统层（System Instruction +
+// Output Schema）内置，用户编辑/新建类别自动继承（spec: ai-runtime 格式契约系统内置）。
 
 import type { ReviewCategory } from "./types";
 
@@ -14,19 +15,10 @@ const COLOR = {
   speech: "var(--c-speech)",
 } as const;
 
-const SEVERITY_RULES = `Severity 判断规则：
-- high：明显影响文章理解、逻辑或核心论证，用户应优先检查；
-- medium：降低内容质量，用户通常应该修改；
-- low：不破坏主要内容，修改后可以提高质量。`;
-
-const QUOTE_RULES = `引用与定位规则：
-- quote 必须从 Document Context 中逐字复制一小段连续原文（一个短句或短语，建议不超过 40 字），不得改写、概括或跨段拼接；
-- lineHint 填写 quote 所在行的 L 行号；
-- contentHash 按本文档 Output Schema 中的规则计算（去空白后 djb2，8 位 hex）；
-- 段落级问题引用该段中最能代表问题的一句，不要引用整段。`;
-
-function prompt(role: string, checks: string, extra: string): string {
-  return [role, `检查项：\n${checks}`, extra, SEVERITY_RULES, QUOTE_RULES].join("\n\n");
+// 类别 Prompt 仅含审阅要求与 severity 校准；数据格式契约由系统层（System Instruction + Output Schema）内置，
+// 用户编辑/新建类别自动继承，无需也不应在此重复（spec: ai-runtime 格式契约系统内置）。
+function prompt(role: string, checks: string, calibration: string): string {
+  return [role, `检查项：\n${checks}`, `Severity 校准：${calibration}`].join("\n\n");
 }
 
 export const DEFAULT_CATEGORIES: ReviewCategory[] = [
@@ -40,7 +32,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
     defaultSelected: true,
     order: 0,
     prompt: prompt(
-      "你是逻辑审阅专家，只分析文本内部逻辑，不判断外部事实是否真实。",
+      "你是逻辑审阅专家，只分析文本内部逻辑，不判断外部事实是否真实。每个 Finding 只描述一个主要逻辑问题，并指出问题所在的具体语句。",
       [
         "推理跳跃（结论超出前文给出的信息）",
         "因果关系错误（把相关当因果、因果倒置、单因解释）",
@@ -50,7 +42,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
         "概念变化 / 概念偷换（同一词语前后含义不一致）",
         "逻辑链缺失（缺少中间论证环节）",
       ].map((s) => `- ${s}`).join("\n"),
-      "每个 Finding 只描述一个主要逻辑问题，并指出问题所在的具体语句。",
+      "只有动摇核心论证或导致结论无法成立的问题才评 high；单纯的措辞瑕疵不高于 low。",
     ),
   },
   {
@@ -63,7 +55,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
     defaultSelected: true,
     order: 1,
     prompt: prompt(
-      "你是论点审阅专家，检查文章观点本身的质量与一致性。",
+      "你是论点审阅专家，检查文章观点本身的质量与一致性。指出观点问题所在的具体语句；结论段出现的新的核心观点必须逐条指出。",
       [
         "核心观点是否明确（能否用一句话说清）",
         "子观点是否明确",
@@ -72,7 +64,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
         "观点是否过度扩大",
         "结论是否引入前文从未出现的新的核心观点",
       ].map((s) => `- ${s}`).join("\n"),
-      "指出观点问题所在的具体语句；结论段出现的新论点必须逐条指出。",
+      "核心观点缺失、模糊到无法把握，或结论偷换论点才评 high；子观点的组织问题多为 medium。",
     ),
   },
   {
@@ -85,7 +77,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
     defaultSelected: true,
     order: 2,
     prompt: prompt(
-      "你是论证审阅专家，检查论据与论点之间的关系，不进行事实核查。",
+      "你是论证审阅专家，检查论据与论点之间的关系，不进行事实核查。引用具体的论据语句；断言式结论要引用该结论本身。",
       [
         "论据是否支持论点",
         "论据是否不足（单一样本、比例或范围未交代）",
@@ -94,7 +86,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
         "论点和论据是否脱节",
         "是否只有结论没有论证（断言代替论证）",
       ].map((s) => `- ${s}`).join("\n"),
-      "引用具体的论据语句；断言式结论要引用该结论本身。",
+      "论据与结论严重脱节（如单一案例支撑全称结论）评 high；论据交代不全或口径不明为 medium。",
     ),
   },
   {
@@ -107,7 +99,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
     defaultSelected: true,
     order: 3,
     prompt: prompt(
-      "你是修辞审阅专家，检查语言表达的质量与力度。",
+      "你是修辞审阅专家，检查语言表达的质量与力度。修辞问题引用具体的短语或句子，并给出可直接替换的表述建议。",
       [
         "措辞（用词是否准确、是否有更合适的词）",
         "表达力度（语气与内容是否匹配，是否过强或过弱）",
@@ -118,7 +110,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
         "过度修饰（形容词堆叠、夸张修辞）",
         "不自然表达（翻译腔、生硬搭配）",
       ].map((s) => `- ${s}`).join("\n"),
-      "修辞问题引用具体的短语或句子，并给出可直接替换的表述建议。",
+      "high 罕见——仅在表达严重损害可信度时使用；多数修辞问题为 medium/low。",
     ),
   },
   {
@@ -131,7 +123,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
     defaultSelected: true,
     order: 4,
     prompt: prompt(
-      "你是结构审阅专家，检查文章的组织与衔接。可以输出段落级 Finding，不限于单句。",
+      "你是结构审阅专家，检查文章的组织与衔接。可以输出段落级 Finding，不限于单句；段落级问题引用该段中最能代表问题的一句，并在问题说明中注明涉及的段落。",
       [
         "章节顺序（章节安排是否合理）",
         "段落顺序（段落之间逻辑位置是否正确）",
@@ -142,7 +134,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
         "重复章节（同一内容在不同章节重复出现）",
         "主题跳跃（话题突然切换）",
       ].map((s) => `- ${s}`).join("\n"),
-      "段落级问题引用该段中最能代表问题的一句，problem 中说明涉及的是哪个段落（含 L 行号）。",
+      "章节缺失或顺序颠倒导致主线断裂评 high；局部衔接与组织问题为 medium；收束拖沓为 low。",
     ),
   },
   {
@@ -155,7 +147,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
     defaultSelected: true,
     order: 5,
     prompt: prompt(
-      "你是清晰度审阅专家，检查表达是否易于准确理解。",
+      "你是清晰度审阅专家，检查表达是否易于准确理解。必须引用造成理解困难的具体语句。",
       [
         "歧义（一句话可以有多种理解）",
         "句子过长（一句话包含过多并列判断或从句）",
@@ -166,7 +158,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
         "不必要的复杂表达（可以用更简单的说法）",
         "啰嗦表达（可以删减而不损失信息）",
       ].map((s) => `- ${s}`).join("\n"),
-      "清晰度问题必须引用造成理解困难的具体语句。",
+      "歧义可能导致读者得出相反理解为 high；啰嗦、长句与复杂表达多为 medium/low。",
     ),
   },
   {
@@ -179,7 +171,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
     defaultSelected: false,
     order: 6,
     prompt: prompt(
-      "你是演讲稿审阅专家，检查文稿是否适合口头表达、听众第一次听能否跟上。",
+      "你是演讲稿审阅专家，检查文稿是否适合口头表达、听众第一次听能否跟上。以「听众第一次听」为标准判断，不考虑阅读场景。",
       [
         "句子是否适合口语表达（书面语、长从句）",
         "句子是否过长（口语单句建议不超过 30 字）",
@@ -188,7 +180,7 @@ export const DEFAULT_CATEGORIES: ReviewCategory[] = [
         "节奏是否单调（句长均匀、缺少强调点）",
         "重点是否清晰（关键信息是否被淹没）",
       ].map((s) => `- ${s}`).join("\n"),
-      "以「听众第一次听」为标准判断，不考虑阅读场景。",
+      "听众第一次听必然误解或完全跟不上的句子评 high；节奏与重复类问题多为 low。",
     ),
   },
 ];

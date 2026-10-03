@@ -49,19 +49,20 @@ describe("会话路由头（OpenCode MissingSessionID 回归）", () => {
     const { createModels, fauxProvider, fauxAssistantMessage, fauxToolCall } = await import("@earendil-works/pi-ai");
     resetModelsCacheForTests();
     let captured: Record<string, unknown> | null = null;
+    void captured;
     const faux = fauxProvider({ models: [{ id: "faux" }] });
     const models = createModels();
     models.setProvider(faux.provider);
     const orig = models.complete.bind(models);
     models.complete = ((model: unknown, ctx: unknown, opts?: Record<string, unknown>) => {
-      captured = opts ?? {};
+      captured = { ...(opts ?? {}) };
       return orig(model as never, ctx as never, opts as never);
     }) as typeof models.complete;
     setModelsFactoryForTests(() => models);
     faux.setResponses([fauxAssistantMessage([fauxToolCall("submit_findings", VALID)])]);
     const findings = await callFindings(MODEL, SYS, USER, { apiKey: "k" });
     expect(findings).toHaveLength(1);
-    expect(captured?.sessionId).toBe("argus-m");
+    expect((captured as Record<string, unknown> | null)?.sessionId).toBe("argus-m");
     resetModelsCacheForTests();
   });
 });

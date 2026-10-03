@@ -29,7 +29,7 @@ onMounted(async () => {
   <nav>
     <div class="brand">
       <div class="sq"></div>
-      <div><b>ARGUS</b><span class="microlabel">AI 文稿审阅 · MVP</span></div>
+      <div><b>ARGUS</b><span class="microlabel">AI 文稿审阅</span></div>
     </div>
     <div class="navtabs">
       <div class="navtab" :class="{ on: ui.page === 'new' }" data-page="new" @click="ui.go('new')">

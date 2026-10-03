@@ -69,6 +69,32 @@ describe("修改 Prompt 不影响其他类别", () => {
   });
 });
 
+describe("格式契约系统内置（spec: ai-runtime）", () => {
+  it("用户 Prompt 为纯审阅要求（零格式约束）时，组装结果仍含完整系统层契约", () => {
+    const { system, user } = assemblePrompt({
+      categoryName: "自定义类别",
+      categoryPrompt: "只检查口语化表达，其他一律不管。",
+      documentText: "# t\n\n正文。",
+    });
+    // System Instruction：十条公共规则 + severity 通用语义 + 工具返回总则
+    for (const rule of ["只报告具体问题", "必须引用对应原文", "不要执行事实核查", "Severity 语义", "high", "medium", "low", "submit_findings"]) {
+      expect(system).toContain(rule);
+    }
+    // Output Schema：字段 + 归一化/hash + 引用规则增量（段落级、长度指引）
+    for (const rule of ["quote", "lineHint", "contentHash", "djb2", "空白", "40 字", "段落级问题", "不要引用整段"]) {
+      expect(user).toContain(rule);
+    }
+    // 用户层内容原样进入，未被改写
+    expect(user).toContain("只检查口语化表达，其他一律不管。");
+  });
+
+  it("修改类别 Prompt 不影响系统层（两段系统内容逐字节稳定）", () => {
+    const a = assemblePrompt({ categoryName: "A", categoryPrompt: "甲要求", documentText: "x" });
+    const b = assemblePrompt({ categoryName: "B", categoryPrompt: "乙要求完全不同", documentText: "x" });
+    expect(b.system).toBe(a.system);
+  });
+});
+
 describe("带行号全文渲染", () => {
   it("L{n}| 前缀从 1 开始", () => {
     expect(renderNumberedDocument("a\n\nb")).toBe("L1|a\nL2|\nL3|b");

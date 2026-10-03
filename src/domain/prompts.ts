@@ -20,7 +20,14 @@ export const SYSTEM_INSTRUCTION = `你是一名严格的中文文稿审阅专家
 10. 不使用模糊评价代替解释。
 
 不推荐的 Finding：「这段可以写得更好」（原因不具体）、「文章整体逻辑还有提升空间」（没有定位具体问题）、「这里可能有一点问题」（信息不足）。
-推荐的 Finding：问题具体（结论范围大于论据支持的范围）、原因具体（前文只讨论三个案例，当前句子把结论扩大到了所有用户）、修改方向具体（建议限制结论范围）。`;
+推荐的 Finding：问题具体（结论范围大于论据支持的范围）、原因具体（前文只讨论三个案例，当前句子把结论扩大到了所有用户）、修改方向具体（建议限制结论范围）。
+
+Severity 语义（通用定义，各类别可在此基础上校准）：
+- high：明显影响文章理解、逻辑或核心论证，用户应优先检查；
+- medium：降低内容质量，用户通常应该修改；
+- low：不破坏主要内容，修改后可以提高质量。
+
+你必须以一次 submit_findings 工具调用返回全部结果（详见 Output Schema）。`;
 
 /** Output Schema 文案：字段约束 + 归一化与 hash 规则说明（PRD §33）。 */
 export const OUTPUT_SCHEMA_TEXT = `输出要求（Structured Output）：
@@ -29,7 +36,7 @@ export const OUTPUT_SCHEMA_TEXT = `输出要求（Structured Output）：
 每个 Finding 必须包含以下字段：
 - severity: "high" | "medium" | "low"。high=明显影响理解、逻辑或核心论证；medium=降低内容质量；low=不破坏主要内容，修改后可提高质量。
 - title: 问题类型的简短命名（如「推理跳跃」）。
-- quote: 逐字引用的原文片段。必须是 Document Context 中连续出现的一小段原文（一个短句或短语），不得改写、概括或拼接。
+- quote: 逐字引用的原文片段。必须是 Document Context 中连续出现的一小段原文（一个短句或短语，建议不超过 40 字），不得改写、概括或跨段拼接。段落级问题引用该段中最能代表问题的一句，不要引用整段。
 - lineHint: quote 所在的行号（整数，依据 Document Context 的 L 行号标注）。
 - contentHash: quote 的归一化内容哈希。计算规则：先去除 quote 中全部空白字符（含空格、换行、制表符），再对得到的字符串计算 djb2 变体哈希：初始 h=5381，对每个字符执行 h = (h*33 + code) >>> 0（无符号 32 位），输出 8 位小写十六进制（不足补前导 0）。
 - problem: 问题描述（具体，不使用模糊评价）。
