@@ -50,3 +50,5 @@
 14. **OpenCode Zen/Go 与 Radius 的 /models 在线检索支持情况未验证**：静态目录（79/29/28 个模型）与手动输入兜底可用；检索失败按既有降级路径弱提示。
 15. **kimi-coding 与 moonshotai 同厂易混**：前者是 Coding 订阅端点（api.kimi.com/coding），Key 与开放平台不通用；配置错误时由测试连接给出可读错误。
 16. **Radius 的 api 家族为 pi-messages（pi 自有协议）**：在线检索鉴权头按默认 Bearer 处理，如端点不支持则降级。
+
+17. **「未知错误」诊断增强**（2026-10-03，用户反馈 opencode-go 审阅报未知错误）：复现核查表明预设解析/tauri 通道/分类链路对 opencode-go 均正常（假 Key 干净映射 401→API Key 无效）；真实 Key 下的 400 request_error / 5xx 原先落入 unknown 且不带原因。现已：unknown 文案内嵌脱敏原始原因片段、5xx→Provider 服务端错误、400 非超限→请求被拒绝（含原因），流水日志保留完整未分类原文。用户个案待新报错文案定位。

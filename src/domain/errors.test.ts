@@ -42,6 +42,20 @@ describe("错误映射", () => {
     expect(isRetryable(e)).toBe(false);
   });
 
+  it("未知错误附带脱敏原因片段（不再只显示发生错误）", () => {
+    const e = classifyError(new Error("weird failure: something odd happened in upstream gateway xyz"));
+    expect(e.kind).toBe("unknown");
+    expect(e.message).toContain("something odd happened");
+    expect(e.message).toContain("未知错误");
+  });
+
+  it("5xx → Provider 服务端错误；400 非超限 → 请求被拒绝（含原因片段）", () => {
+    expect(classifyError(new Error("HTTP 503: service unavailable")).kind).toBe("provider_server_error");
+    const e400 = classifyError(new Error('HTTP 400: {"type":"error","error":{"type":"request_error","message":"max_tokens too large"}}'));
+    expect(e400.kind).toBe("invalid_request");
+    expect(e400.message).toContain("max_tokens too large");
+  });
+
   it("结构化输出无效", () => {
     const e = appError("invalid_structured_output");
     expect(e.message).toContain("Structured Output 无效");

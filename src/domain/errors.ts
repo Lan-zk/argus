@@ -13,6 +13,8 @@ export type AppErrorKind =
   | "context_overflow"
   | "invalid_structured_output"
   | "runtime_error"
+  | "provider_server_error"
+  | "invalid_request"
   | "unknown";
 
 export type ErrorGroup = "retryable" | "config" | "overflow" | "fatal";
@@ -56,8 +58,12 @@ function msg(kind: AppErrorKind, extra = ""): string {
       return `Structured Output 无效。模型未能通过 Schema 校验（含一次自动修复）。建议重跑该类别或更换遵循指令更稳的模型。${extra}`;
     case "runtime_error":
       return `Runtime 错误。模型调用通道异常，请重试；持续出现请检查应用日志。${extra}`;
+    case "provider_server_error":
+      return `Provider 服务端错误（5xx）。服务暂不可用或内部错误，请稍后重跑；持续出现请检查该服务状态。${extra}`;
+    case "invalid_request":
+      return `请求被 Provider 拒绝（400）。多为模型不支持当前请求参数，请换一个模型或调整高级参数后重跑。${extra}`;
     default:
-      return `未知错误。请重跑该类别；持续出现请检查模型配置与网络。${extra}`;
+      return `未知错误（原因：${redactSnippet(extra)}）。请重跑该类别；持续出现请把括号内原因反馈给开发者。`;
   }
 }
 
@@ -103,6 +109,9 @@ export function classifyError(err: unknown, knownKeys: string[] = []): AppError 
   if (status === 429) return appError("rate_limit", "", cause);
   if (status === 400 && OVERFLOW_PATTERNS.some((p) => p.test(raw)))
     return appError("context_overflow", "", cause);
+  if (status !== null && status >= 500) return appError("provider_server_error", "", cause);
+  if (status === 400)
+    return appError("invalid_request", redactSnippet(raw));
 
   if (/timeout|timed?\s*out|ETIMEDOUT|AbortError/i.test(raw))
     return appError("timeout", "", cause);
@@ -117,7 +126,13 @@ export function classifyError(err: unknown, knownKeys: string[] = []): AppError 
   if (/not found/i.test(raw)) return appError("model_not_found", "", cause);
 
   dlog("错误", `未分类错误 → ${text}`, true);
-  return appError("unknown", "", cause);
+  return appError("unknown", text, cause);
+}
+
+/** 片段化：脱敏后截断到 120 字符，供错误文案内嵌原始原因。 */
+function redactSnippet(text: string): string {
+  const clean = redact(text).replace(/\s+/g, " ").trim();
+  return clean.length > 120 ? `${clean.slice(0, 120)}…` : clean || "无详细信息";
 }
 
 function extractStatus(err: unknown): number | null {

@@ -13,7 +13,7 @@ import { useSettingsStore } from "../stores/settings";
 import { useSessionStore } from "../stores/session";
 
 interface SpikeRequest {
-  phase: "run" | "verify_restore" | "model_config";
+  phase: "run" | "verify_restore" | "model_config" | "diag_opencode";
   baseUrl: string;
   model: string;
   apiKey: string;
@@ -55,6 +55,7 @@ export async function runDevSpikeIfRequested(): Promise<void> {
   if (req.phase === "run") await runPhase(req);
   else if (req.phase === "verify_restore") await verifyRestorePhase();
   else if (req.phase === "model_config") await modelConfigPhase(req);
+  else if (req.phase === "diag_opencode") await diagOpencodePhase(req);
 }
 
 async function runPhase(req: SpikeRequest): Promise<void> {
@@ -160,6 +161,48 @@ async function runPhase(req: SpikeRequest): Promise<void> {
   }
   result.finishedAt = new Date().toISOString();
   await writeResult("spike-result.json", result);
+}
+
+/** 诊断：opencode 系预设的应用内调用（假 Key，预期 401 → invalid_api_key；捕获原始错误文本）。 */
+async function diagOpencodePhase(req: SpikeRequest): Promise<void> {
+  const result: Record<string, unknown> = { phase: "diag_opencode", startedAt: new Date().toISOString() };
+  try {
+    const { testConnection } = await import("../ai/test-connection");
+    for (const provider of ["opencode-go", "opencode", "deepseek"] as const) {
+      const { resolveModel } = await import("../ai/client");
+      const { model } = await resolveModel({ id: `diag-${provider}`, provider, model: req.model } as never);
+      result[`${provider}_resolved`] = { api: model.api, baseUrl: model.baseUrl };
+      const res = await testConnection({ id: `diag-${provider}`, provider, model: req.model } as never, req.apiKey);
+      result[provider] = res.ok
+        ? { ok: true, model: res.model }
+        : { ok: false, kind: res.error.kind, message: res.error.message, cause: String((res.error.cause as Error)?.message ?? res.error.cause ?? "").slice(0, 300) };
+      // 审阅执行路径（带 submit_findings 工具，与真实审阅一致）
+      if (provider !== "deepseek") {
+        try {
+          await (await import("../ai/call")).callFindings(
+            { id: `diag-${provider}`, provider, model: req.model } as never,
+            "sys",
+            "【Category · 逻辑】\n检查\n\n【Document Context · 带行号全文】\nL1|样例内容。",
+            { apiKey: req.apiKey },
+          );
+          result[`${provider}_reviewPath`] = { unexpected: "no-error" };
+        } catch (e) {
+          const ae = e as { kind?: string; message?: string; cause?: unknown };
+          result[`${provider}_reviewPath`] = {
+            kind: ae.kind,
+            message: String(ae.message).slice(0, 200),
+            cause: String((ae.cause as Error)?.message ?? ae.cause ?? "").slice(0, 300),
+          };
+        }
+      }
+    }
+    result.ok = true;
+  } catch (e) {
+    result.ok = false;
+    result.error = e instanceof Error ? `${e.name}: ${e.message}` : JSON.stringify(e);
+  }
+  result.finishedAt = new Date().toISOString();
+  await writeResult("spike-result-diag.json", result);
 }
 
 /** model-config-ux 联调（tasks 4.1）：发现层 + Key 复用 + 测试连接，走真实应用运行时与 tauri fetch 通道。 */
