@@ -208,6 +208,64 @@ describe("displayName 显示名称（spec: settings 显示名称场景）", () =
   });
 });
 
+describe("2.4 编辑表单按配置来源分流（spec: settings 编辑预设配置沿用预设形态）", () => {
+  it("编辑预设配置 → 预设形态：模型下拉（含目录与当前值）、Key 留空=保持、无 BaseURL 字段", async () => {
+    const w = await mountPage();
+    const settings = useSettingsStore();
+    await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "k" });
+    await flushPromises();
+    await w.findAll("button").find((b) => b.text() === "编辑")!.trigger("click");
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 50)); // 目录懒加载
+    await flushPromises();
+    const html = w.html();
+    expect(html).toContain("端点已内置"); // 预设形态标识
+    expect(html).not.toContain("Base URL"); // 不出现自定义字段
+    const select = w.find("select");
+    expect((select.element as HTMLSelectElement).value).toBe("deepseek-flash"); // 当前值选中
+    expect(select.findAll("option").length).toBeGreaterThanOrEqual(2); // 目录选项
+    expect(html).toContain("留空 = 保持已存 Key");
+    w.unmount();
+  });
+
+  it("编辑自定义配置 → 全字段形态：Base URL 可见可改", async () => {
+    const w = await mountPage();
+    const settings = useSettingsStore();
+    await settings.addModel({
+      provider: "openai-compatible",
+      model: "m1",
+      apiKey: "k",
+      baseUrl: "https://a.example/v1",
+    });
+    await flushPromises();
+    await w.findAll("button").find((b) => b.text() === "编辑")!.trigger("click");
+    await flushPromises();
+    const html = w.html();
+    expect(html).toContain("Base URL");
+    expect(html).not.toContain("端点已内置");
+    w.unmount();
+  });
+
+  it("预设编辑改选模型保存生效", async () => {
+    const w = await mountPage();
+    const settings = useSettingsStore();
+    await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "k" });
+    await flushPromises();
+    await w.findAll("button").find((b) => b.text() === "编辑")!.trigger("click");
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 50));
+    await flushPromises();
+    const select = w.find("select");
+    await select.setValue("deepseek-v4-pro");
+    await w.findAll("button").find((b) => b.text() === "保存")!.trigger("click");
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(settings.models[0].model).toBe("deepseek-v4-pro");
+    expect(settings.models[0].provider).toBe("deepseek");
+    w.unmount();
+  });
+});
+
 describe("3.4 自定义连接", () => {
   it("全字段表单 + 检索按钮填充模型 + 手动输入并存", async () => {
     mockModelsFetch(["srv-a", "srv-b"]);

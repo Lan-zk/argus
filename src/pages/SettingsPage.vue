@@ -205,15 +205,31 @@ async function saveCustom() {
   addFlow.value = null;
 }
 
-// ---- 编辑已有配置（保持旧表单，脱敏回显） ----
+// ---- 编辑已有配置（按来源分流：预设形态 / 自定义全字段；Key 脱敏回显） ----
 const editingModel = ref<Partial<ModelConfig> & { id?: string } | null>(null);
+const editModels = ref<DiscoveredModel[]>([]);
 
-function editModel(id: string) {
+/** 该配置是否来自预设（决定编辑表单形态）。 */
+const editingIsPreset = computed(() => !!editingModel.value && !!presetById(String(editingModel.value.provider)));
+
+/** 模型下拉数据 = 目录 ∪ 当前值（目录外模型兜底为选项）。 */
+const editModelOptions = computed<DiscoveredModel[]>(() => {
+  const cur = editingModel.value?.model;
+  if (cur && !editModels.value.some((m) => m.id === cur)) {
+    return [{ id: cur, source: "catalog" }, ...editModels.value];
+  }
+  return editModels.value;
+});
+
+async function editModel(id: string) {
   const m = settings.models.find((x) => x.id === id);
   if (!m) return;
   // 脱敏：不回显完整 Key（spec: app-persistence 界面不回显完整 Key）
   editingModel.value = { ...m, apiKey: "" };
   addFlow.value = null;
+  if (presetById(String(m.provider))) {
+    editModels.value = await catalogModels(String(m.provider));
+  }
 }
 
 async function saveModel() {
@@ -462,20 +478,53 @@ void presetById;
           </div>
         </div>
 
-        <!-- 编辑已有配置（旧表单） -->
-        <div v-if="editingModel" class="model-row" style="border: 2px solid var(--ink)">
+        <!-- 编辑：预设形态（沿用配置时的精简交互） -->
+        <div v-if="editingModel && editingIsPreset" class="model-row" style="border: 2px solid var(--ink)">
+          <div class="mr-top" style="border-bottom: var(--hair)">
+            <b style="font-size: 14px">{{ displayProviderName(String(editingModel.provider)) }}</b>
+            <span class="session-chip">端点已内置</span>
+            <span class="session-chip">编辑 · 目录 {{ editModels.length }} 个模型</span>
+          </div>
+          <div class="mr-grid" style="grid-template-columns: repeat(2, 1fr)">
+            <div class="fg" style="grid-column: span 2">
+              <span class="microlabel">显示名称（可选）</span>
+              <input v-model="editingModel.displayName" type="text" placeholder="留空 = 服务名 · 模型 ID" />
+            </div>
+            <div class="fg" style="grid-column: span 2">
+              <span class="microlabel">模型</span>
+              <select v-model="editingModel.model">
+                <option v-for="m in editModelOptions" :key="m.id" :value="m.id">
+                  {{ m.id }}{{ m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k ctx` : "" }}{{ editModels.some((x) => x.id === m.id) ? "" : "（目录外）" }}
+                </option>
+              </select>
+            </div>
+            <div class="fg" style="grid-column: span 2">
+              <span class="microlabel">API Key（留空 = 保持已存 Key）</span>
+              <input v-model="editingModel.apiKey" type="password" placeholder="sk-…" autocomplete="off" />
+            </div>
+            <div class="fg">
+              <span class="microlabel">Temperature</span>
+              <input v-model.number="editingModel.temperature" type="number" step="0.1" min="0" max="2" placeholder="默认" />
+            </div>
+            <div class="fg">
+              <span class="microlabel">Max Tokens</span>
+              <input v-model.number="editingModel.maxTokens" type="number" min="256" placeholder="默认" />
+            </div>
+          </div>
+          <div class="mr-top" style="border-top: var(--hair)">
+            <button class="mini primary" :disabled="!editingModel.model" @click="saveModel">保存</button>
+            <button class="mini" @click="editingModel = null">取消</button>
+          </div>
+        </div>
+
+        <!-- 编辑：自定义连接形态（全字段） -->
+        <div v-else-if="editingModel" class="model-row" style="border: 2px solid var(--ink)">
           <div class="mr-grid">
             <div class="fg" style="grid-column: span 2">
               <span class="microlabel">显示名称（可选）</span>
               <input v-model="editingModel.displayName" type="text" placeholder="留空 = 服务名 · 模型 ID" />
             </div>
-            <div class="fg" v-if="!editingModel.id">
-              <span class="microlabel">Provider</span>
-              <select v-model="editingModel.provider" disabled>
-                <option v-for="p in PROVIDERS" :key="p" :value="p">{{ PROVIDER_ZH[p] }}</option>
-              </select>
-            </div>
-            <div class="fg" v-else>
+            <div class="fg">
               <span class="microlabel">Provider</span>
               <input :value="providerLabel(editingModel as ModelConfig)" type="text" disabled />
             </div>
@@ -484,7 +533,7 @@ void presetById;
               <input v-model="editingModel.model" type="text" />
             </div>
             <div class="fg g2">
-              <span class="microlabel">API Key {{ editingModel.id ? "（留空=不修改）" : "" }}</span>
+              <span class="microlabel">API Key（留空=不修改）</span>
               <input v-model="editingModel.apiKey" type="password" placeholder="sk-…" autocomplete="off" />
             </div>
             <div class="fg g2" v-if="needsBaseUrl(String(editingModel.provider))">

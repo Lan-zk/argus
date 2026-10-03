@@ -13,6 +13,7 @@
 - [x] 2.1 `types.ts` 增 `displayName?`；`persistence.ts` sanitize 透传 + trim 空串归一；单测覆盖持久化往返与空串等价未设置
 - [x] 2.2 SettingsPage：列表行 displayName 优先（回退「服务名 · 模型 ID」）；自定义连接表单、编辑表单、预设高级折叠各增「显示名称」输入（placeholder=回退值）；组件测试覆盖优先展示、回退、编辑保存
 - [x] 2.3 store 保存链路透传 displayName（addModel/updateModel）；单测覆盖编辑改名不影响其他字段
+- [x] 2.4 编辑表单按配置来源分流：预设配置沿用预设形态（模型下拉含目录、当前值兜底、Key 留空=不修改），自定义配置保持全字段；组件测试覆盖两种形态
 
 ## 3. 勘误与交付
 
