@@ -85,12 +85,19 @@ export function mergeModels(catalog: DiscoveredModel[], remote: DiscoveredModel[
   return [...catalog, ...remote.filter((m) => !seen.has(m.id))];
 }
 
-/** 预设服务的检索输入（家族与 baseUrl 取自注册的 pi-ai Provider）。 */
+/** 预设端点解析：model 级优先（opencode 系列仅存于模型条目），provider 级兜底。 */
+export function endpointOf(provider: import("@earendil-works/pi-ai").Provider): string | null {
+  return provider.getModels()[0]?.baseUrl || provider.baseUrl || null;
+}
+
+/** 预设服务的检索输入（端点与家族取自注册的 pi-ai Provider 及其目录）。 */
 export async function presetFetchInput(providerId: string, apiKey: string): Promise<FetchModelsInput | null> {
   const provider = await getPresetProvider(providerId);
-  if (!provider?.baseUrl) return null;
+  if (!provider) return null;
+  const baseUrl = endpointOf(provider);
+  if (!baseUrl) return null;
   const first = provider.getModels()[0];
-  return { baseUrl: provider.baseUrl, apiKey, family: first?.api };
+  return { baseUrl, apiKey, family: first?.api };
 }
 
 /** 自定义连接的检索输入（按四家族映射 api 家族）。 */

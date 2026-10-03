@@ -39,6 +39,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "xiaomi-token-plan-ams", name: "小米 MiMo", en: "Xiaomi MiMo", group: "cn", region: "欧洲区", recommendedModel: "mimo-v2.5-pro" },
   { id: "xiaomi-token-plan-sgp", name: "小米 MiMo", en: "Xiaomi MiMo", group: "cn", region: "新加坡区", recommendedModel: "mimo-v2.5-pro" },
   { id: "ant-ling", name: "蚂蚁 Ling", en: "Ant Ling", group: "cn", recommendedModel: "Ling-2.6-flash" },
+  { id: "kimi-coding", name: "Kimi Coding", en: "Kimi for Coding", group: "cn", region: "订阅端点", recommendedModel: "k3" },
   // ---- 国际 ----
   { id: "openai", name: "OpenAI", en: "OpenAI", group: "global", recommendedModel: "gpt-5.5" },
   { id: "anthropic", name: "Anthropic", en: "Anthropic", group: "global", recommendedModel: "claude-sonnet-5" },
@@ -52,9 +53,13 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "nvidia", name: "NVIDIA", en: "NVIDIA NIM", group: "global", recommendedModel: "meta/llama-3.2-90b-vision-instruct" },
   { id: "huggingface", name: "Hugging Face", en: "Hugging Face", group: "global", recommendedModel: "deepseek-ai/DeepSeek-V3" },
   { id: "baseten", name: "Baseten", en: "Baseten", group: "global", recommendedModel: "deepseek-ai/DeepSeek-V4.1-Flash" },
+  { id: "meta", name: "Meta", en: "Meta Model API", group: "global", recommendedModel: "muse-spark-1.3" },
   // ---- 聚合 ----
   { id: "openrouter", name: "OpenRouter", en: "OpenRouter", group: "aggregator", recommendedModel: "anthropic/claude-haiku-4.5" },
   { id: "vercel-ai-gateway", name: "Vercel AI Gateway", en: "Vercel AI Gateway", group: "aggregator", recommendedModel: "alibaba/qwen-3-235b" },
+  { id: "opencode", name: "OpenCode Zen", en: "OpenCode Zen", group: "aggregator", recommendedModel: "claude-fable-5" },
+  { id: "opencode-go", name: "OpenCode Go", en: "OpenCode Go", group: "aggregator", recommendedModel: "qwen3.8-flash" },
+  { id: "radius", name: "Radius", en: "Radius", group: "aggregator", recommendedModel: "balanced" },
 ];
 
 export const PRESET_IDS = MODEL_PRESETS.map((p) => p.id);

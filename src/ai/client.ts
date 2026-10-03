@@ -73,6 +73,11 @@ const PI_PROVIDER_FACTORIES: Record<string, () => Promise<Provider>> = {
   openrouter: () => import("@earendil-works/pi-ai/providers/openrouter").then((m) => m.openrouterProvider()),
   "vercel-ai-gateway": () =>
     import("@earendil-works/pi-ai/providers/vercel-ai-gateway").then((m) => m.vercelAIGatewayProvider()),
+  "kimi-coding": () => import("@earendil-works/pi-ai/providers/kimi-coding").then((m) => m.kimiCodingProvider()),
+  meta: () => import("@earendil-works/pi-ai/providers/meta").then((m) => m.metaProvider()),
+  radius: () => import("@earendil-works/pi-ai/providers/radius").then((m) => m.radiusProvider()),
+  opencode: () => import("@earendil-works/pi-ai/providers/opencode").then((m) => m.opencodeProvider()),
+  "opencode-go": () => import("@earendil-works/pi-ai/providers/opencode-go").then((m) => m.opencodeGoProvider()),
 };
 
 /** 预设 Provider 实例缓存（目录读取 / baseUrl / api 家族共用）。 */
@@ -116,12 +121,18 @@ export async function resolveModel(cfg: ModelConfig): Promise<ResolvedCall> {
     }
     const fromCatalog = models.getModel(cfg.provider, cfg.model);
     if (fromCatalog) return { models, model: fromCatalog };
-    // 手动输入的模型 id 不在目录 → 以目录首项的 api 家族与 Provider baseUrl 手工构建
+    // 手动输入的模型 id 不在目录 → 按目录主流 api 家族与目录端点手工构建（并列取首项）
     const provider = await getPresetProvider(cfg.provider);
-    const first = provider?.getModels()[0];
+    const catalog = provider?.getModels() ?? [];
+    const counts = new Map<string, number>();
+    for (const m of catalog) counts.set(m.api, (counts.get(m.api) ?? 0) + 1);
+    const majority =
+      [...counts.entries()].sort((a, b) => b[1] - a[1] || catalog.findIndex((m) => m.api === a[0]) - catalog.findIndex((m) => m.api === b[0]))[0]?.[0] ??
+      "openai-completions";
+    const baseUrl = catalog[0]?.baseUrl || provider?.baseUrl || "";
     return {
       models,
-      model: manual(cfg, first?.api ?? "openai-completions", provider?.baseUrl ?? "", cfg.provider),
+      model: manual(cfg, majority, baseUrl, cfg.provider),
     };
   }
 

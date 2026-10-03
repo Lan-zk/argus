@@ -2,14 +2,21 @@
 import { describe, expect, it } from "vitest";
 import { GROUP_ZH, MODEL_PRESETS, PRESET_IDS, presetById, displayProviderName } from "./presets";
 import { getPresetProvider } from "../ai/client";
+import { endpointOf } from "../ai/model-discovery";
 
 describe("预设清单完整性", () => {
-  it("共 29 项（国内 15 / 国际 12 / 聚合 2），id 唯一", () => {
-    expect(MODEL_PRESETS).toHaveLength(29);
-    expect(MODEL_PRESETS.filter((p) => p.group === "cn")).toHaveLength(15);
-    expect(MODEL_PRESETS.filter((p) => p.group === "global")).toHaveLength(12);
-    expect(MODEL_PRESETS.filter((p) => p.group === "aggregator")).toHaveLength(2);
+  it("共 34 项（国内 16 / 国际 13 / 聚合 5），id 唯一", () => {
+    expect(MODEL_PRESETS).toHaveLength(34);
+    expect(MODEL_PRESETS.filter((p) => p.group === "cn")).toHaveLength(16);
+    expect(MODEL_PRESETS.filter((p) => p.group === "global")).toHaveLength(13);
+    expect(MODEL_PRESETS.filter((p) => p.group === "aggregator")).toHaveLength(5);
     expect(new Set(PRESET_IDS).size).toBe(PRESET_IDS.length);
+  });
+
+  it("补回的 5 个误判项全部在列（opencode 系/kimi-coding/meta/radius）", () => {
+    for (const id of ["opencode", "opencode-go", "kimi-coding", "meta", "radius"]) {
+      expect(PRESET_IDS, `缺 ${id}`).toContain(id);
+    }
   });
 
   it("分组标签齐备", () => {
@@ -38,11 +45,21 @@ describe("预设与 pi-ai 目录对照（快照）", () => {
     }
   });
 
-  it("预设 Provider 均有固定 baseUrl（动态网关不得入选）", async () => {
+  it("每个预设都能解析出非空固定端点（provider 级或 model 级，占位符端点不得入选）", async () => {
     for (const id of PRESET_IDS) {
       const p = await getPresetProvider(id);
-      expect(p!.baseUrl, `预设 ${id} 缺少固定 baseUrl`).toBeTruthy();
+      const ep = endpointOf(p!);
+      expect(ep, `预设 ${id} 无法解析端点`).toBeTruthy();
+      expect(ep!, `预设 ${id} 端点含占位符`).not.toMatch(/[{}]/);
     }
+  });
+
+  it("端点存于 model 级的预设可正常解析（opencode 系列回归）", async () => {
+    const zen = await getPresetProvider("opencode");
+    expect(zen!.baseUrl).toBeUndefined(); // 端点不在 provider 级
+    expect(endpointOf(zen!)).toBe("https://opencode.ai/zen");
+    const go = await getPresetProvider("opencode-go");
+    expect(endpointOf(go!)).toBe("https://opencode.ai/zen/go");
   });
 });
 

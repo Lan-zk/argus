@@ -32,7 +32,7 @@ model-config-ux 交付后复核发现预设清单存在 5 处误判（调查方�
 - `opencode`（OpenCode Zen，79 模型，推荐 `claude-fable-5`）、`opencode-go`（OpenCode Go，29，推荐取目录主流）、`radius`（Radius，28，聚合组）
 - `kimi-coding`（Kimi Coding，国内组，端点 api.kimi.com/coding）
 - `meta`（Meta Model API，国际组）
-- 推荐模型以「存在于目录」为准，由快照测试锁定；分组：国内 +1、国际 +1、聚合 +3 → 15/13/6 = 34
+- 推荐模型以「存在于目录」为准，由快照测试锁定；分组：国内 +1、国际 +1、聚合 +3 → 16/13/5 = 34
 
 ### 4. displayName 字段形态
 

@@ -37,7 +37,7 @@ describe("3.1 第一步：选服务", () => {
     const w = await mountPage();
     await w.find("section .set-sec > button").trigger("click"); // ＋ 新增模型配置
     expect(w.findAll(".preset-group").length).toBeGreaterThanOrEqual(4); // 3 分组 + 兜底组
-    expect(w.findAll(".preset-card").length).toBe(31); // 29 预设 + 自定义 + 本地
+    expect(w.findAll(".preset-card").length).toBe(36); // 34 预设 + 自定义 + 本地
     const labels = w.findAll(".preset-group > .microlabel").map((l) => l.text());
     expect(labels).toContain("国内服务");
     expect(labels).toContain("国际服务");
@@ -148,6 +148,62 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
     // 规格约束的是数据文件不落明文：校验持久化层输出（内存 store 保留 Key 供调用快路径，系 MVP 既有行为）
     const persisted = await import("../lib/persistence").then((m) => m.loadState());
     expect(JSON.stringify(persisted.settings.models)).not.toContain("sk-persist-me");
+    w.unmount();
+  });
+});
+
+describe("displayName 显示名称（spec: settings 显示名称场景）", () => {
+  it("设置了 displayName 的行优先展示，模型 id 退为副标签", async () => {
+    const w = await mountPage();
+    const settings = useSettingsStore();
+    await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "k", displayName: "公司主力" });
+    await settings.addModel({ provider: "deepseek", model: "deepseek-v4-pro", apiKey: "k" });
+    await flushPromises();
+    const rows = w.findAll(".model-row");
+    const withName = rows[0].find(".mr-top");
+    expect(withName.find("b").text()).toBe("公司主力");
+    expect(withName.text()).toContain("deepseek-flash"); // 模型 id 副标签
+    // 未设置：回退为 bold=model（服务名 · 模型 ID 形态）
+    expect(rows[1].find(".mr-top b").text()).toBe("deepseek-v4-pro");
+    w.unmount();
+  });
+
+  it("自定义连接可填显示名称并保存", async () => {
+    const w = await mountPage();
+    await w.find("section .set-sec > button").trigger("click");
+    await w.findAll(".preset-card").find((c) => c.text().includes("自定义连接"))!.trigger("click");
+    await flushPromises();
+    const nameInput = w.find('input[placeholder*="自定义 ·"]');
+    await nameInput.setValue("硅基流动-闪");
+    const baseUrl = w.find('input[placeholder*="api/paas"]');
+    await baseUrl.setValue("https://api.siliconflow.cn/v1");
+    const modelInput = w.find('input[list="custom-model-list"]');
+    await modelInput.setValue("Qwen/Qwen3-8B");
+    await w.findAll("button").find((b) => b.text() === "保存")!.trigger("click");
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 20));
+    const settings = useSettingsStore();
+    expect(settings.models[0].displayName).toBe("硅基流动-闪");
+    expect(settings.models[0].model).toBe("Qwen/Qwen3-8B");
+    w.unmount();
+  });
+
+  it("编辑已有配置改名不影响其他字段", async () => {
+    const w = await mountPage();
+    const settings = useSettingsStore();
+    const m = await settings.addModel({ provider: "deepseek", model: "deepseek-flash", apiKey: "k" });
+    await flushPromises();
+    await w.findAll("button").find((b) => b.text() === "编辑")!.trigger("click");
+    await flushPromises();
+    const nameInput = w.find('input[placeholder*="服务名 · 模型 ID"]');
+    await nameInput.setValue("改名X");
+    await w.findAll("button").find((b) => b.text() === "保存")!.trigger("click");
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(settings.models[0].displayName).toBe("改名X");
+    expect(settings.models[0].model).toBe("deepseek-flash");
+    expect(settings.models[0].provider).toBe("deepseek");
+    void m;
     w.unmount();
   });
 });

@@ -39,6 +39,24 @@ describe("2.1 resolveModel 注册表分发", () => {
     expect(model.baseUrl).toBe("https://api.deepseek.com");
   });
 
+  it("目录外手动输入：api 家族按目录主流推断（opencode 混合目录）", async () => {
+    const { getPresetProvider } = await import("./client");
+    const provider = await getPresetProvider("opencode");
+    const catalog = provider!.getModels();
+    const counts = new Map<string, number>();
+    for (const m of catalog) counts.set(m.api, (counts.get(m.api) ?? 0) + 1);
+    const majority = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const { model } = await resolveModel({ id: "m", provider: "opencode", model: "zen-custom-x" } as ModelConfig);
+    expect(model.api).toBe(majority);
+    expect(model.baseUrl).toBe("https://opencode.ai/zen");
+  });
+
+  it("目录外手动输入：单一目录家族直取（deepseek）", async () => {
+    const { model } = await resolveModel({ id: "m", provider: "deepseek", model: "deepseek-custom-y" } as ModelConfig);
+    expect(model.api).toBe("openai-completions");
+    expect(model.baseUrl).toBe("https://api.deepseek.com");
+  });
+
   it("旧 4 家族回归：openai-compatible 自定义 baseUrl 不变", async () => {
     const { model } = await resolveModel({
       id: "m9",

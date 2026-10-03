@@ -43,6 +43,8 @@ export interface ModelConfig {
   baseUrl?: string;
   temperature?: number;
   maxTokens?: number;
+  /** 自定义显示名称（可选）：设置列表优先展示，用于快速区分多条配置。 */
+  displayName?: string;
   isDefault?: boolean;
   /** 模型上下文窗口（token），用于长文降级判定；用户可不填，走 Provider 默认估算。 */
   contextWindow?: number;

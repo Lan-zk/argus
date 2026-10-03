@@ -63,6 +63,18 @@ describe("Key 不落明文（spec: API Key 安全存储）", () => {
     expect(JSON.stringify(loaded)).not.toContain("sk-topsecret");
   });
 
+  it("displayName 持久化往返；trim 后空串等价未设置", async () => {
+    const settings = defaultSettings();
+    settings.models = [
+      { id: "m1", provider: "deepseek", model: "deepseek-flash", displayName: "  公司主力  " },
+      { id: "m2", provider: "deepseek", model: "deepseek-v4-pro", displayName: "   " },
+    ] as never;
+    await saveSettings(settings);
+    const loaded = await loadState();
+    expect(loaded.settings.models[0].displayName).toBe("公司主力"); // trim
+    expect(loaded.settings.models[1].displayName).toBeUndefined(); // 空串归一
+  });
+
   it("keyring 写读往返一致（开发模式内存实现；Tauri 下走钥匙串 command）", async () => {
     await keyring.set("m1", "sk-roundtrip");
     expect(await keyring.get("m1")).toBe("sk-roundtrip");

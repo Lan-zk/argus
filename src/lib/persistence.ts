@@ -48,11 +48,12 @@ async function getStore(): Promise<StoreLike> {
   return storePromise;
 }
 
-/** 剥离 apiKey 字段：数据文件永不出现 Key 明文。 */
+/** 剥离 apiKey 字段（数据文件永不出现 Key 明文）；displayName trim 后空串归一为未设置。 */
 export function sanitizeModelConfig(cfg: ModelConfig): StoredModelConfig {
-  const { apiKey: _drop, ...rest } = cfg;
+  const { apiKey: _drop, displayName, ...rest } = cfg;
   void _drop;
-  return rest as StoredModelConfig;
+  const dn = displayName?.trim();
+  return { ...rest, ...(dn ? { displayName: dn } : {}) } as StoredModelConfig;
 }
 
 export function defaultSettings(): AppSettings {

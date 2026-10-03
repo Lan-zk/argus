@@ -45,6 +45,21 @@ describe("同 Provider 复用 Key", () => {
     expect(await keyring.get(b.id)).toBeNull(); // 未自动带入 A 的 Key
   });
 
+  it("displayName 经 addModel/updateModel 透传且改名不影响其他字段", async () => {
+    const s = useSettingsStore();
+    const m = await s.addModel({
+      provider: "deepseek",
+      model: "deepseek-flash",
+      apiKey: "sk-dn",
+      displayName: "快速通道",
+    });
+    expect(s.models[0].displayName).toBe("快速通道");
+    await s.updateModel(m.id, { displayName: "改名后" });
+    expect(s.models[0].displayName).toBe("改名后");
+    expect(s.models[0].model).toBe("deepseek-flash"); // 其他字段不动
+    expect(s.models[0].provider).toBe("deepseek");
+  });
+
   it("getApiKey 回退链：本配置条目缺失时走同 Provider 兄弟条目", async () => {
     const s = useSettingsStore();
     const a = await s.addModel({ provider: "zai", model: "glm-5.3", apiKey: "sk-zai" });

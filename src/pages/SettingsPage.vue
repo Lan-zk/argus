@@ -58,6 +58,7 @@ const presetModelId = ref("");
 const fetching = ref(false);
 const fetchError = ref("");
 const presetAdvanced = ref(false);
+const presetDisplayName = ref("");
 const presetTemp = ref<number | undefined>(undefined);
 const presetMaxTokens = ref<number | undefined>(undefined);
 
@@ -70,6 +71,7 @@ async function initPresetConfigure(preset: ModelPreset) {
   presetModelId.value = "";
   fetchError.value = "";
   presetAdvanced.value = false;
+  presetDisplayName.value = "";
   presetTemp.value = undefined;
   presetMaxTokens.value = undefined;
   // 静态目录先行（离线可用，spec: ai-runtime 预设服务离线展示模型目录）
@@ -138,6 +140,7 @@ async function savePreset() {
     contextWindow: catalogModel?.contextWindow,
     temperature: presetTemp.value,
     maxTokens: presetMaxTokens.value,
+    displayName: presetDisplayName.value || undefined,
   });
   addFlow.value = null;
 }
@@ -164,6 +167,11 @@ async function initCustomConfigure(local: boolean) {
 function needsBaseUrl(p: string) {
   return p === "openai-compatible";
 }
+
+const customNameFallback = computed(() => {
+  const f = customForm.value;
+  return `自定义 · ${f.model || "模型ID"}`;
+});
 
 async function fetchCustomModels() {
   const f = customForm.value;
@@ -192,6 +200,7 @@ async function saveCustom() {
     temperature: f.temperature,
     maxTokens: f.maxTokens,
     contextWindow: f.contextWindow,
+    displayName: f.displayName?.trim() || undefined,
   });
   addFlow.value = null;
 }
@@ -215,6 +224,7 @@ async function saveModel() {
     provider: m.provider,
     model: m.model,
     baseUrl: m.baseUrl,
+    displayName: m.displayName?.trim() || undefined,
     temperature: m.temperature,
     maxTokens: m.maxTokens,
     contextWindow: m.contextWindow,
@@ -277,7 +287,8 @@ void presetById;
         <div v-for="m in settings.models" :key="m.id" class="model-row" :class="{ 'def-model': m.isDefault }">
           <div class="mr-top">
             <span class="microlabel">{{ providerLabel(m) }}</span>
-            <b>{{ m.model }}</b>
+            <b>{{ m.displayName || m.model }}</b>
+            <span v-if="m.displayName" class="session-chip">{{ m.model }}</span>
             <span v-if="m.baseUrl" class="session-chip">{{ m.baseUrl }}</span>
             <span v-if="m.isDefault" class="microlabel" style="color: var(--red)">默认</span>
             <span class="spacer" style="flex: 1"></span>
@@ -373,7 +384,11 @@ void presetById;
               @click="savePreset"
             >保存</button>
           </div>
-          <div v-if="presetAdvanced" class="mr-grid" style="grid-template-columns: repeat(3, 1fr)">
+          <div v-if="presetAdvanced" class="mr-grid" style="grid-template-columns: repeat(4, 1fr)">
+            <div class="fg">
+              <span class="microlabel">显示名称</span>
+              <input v-model="presetDisplayName" type="text" :placeholder="`${addFlow.preset.name} · ${presetModelId || addFlow.preset.recommendedModel}`" />
+            </div>
             <div class="fg">
               <span class="microlabel">Temperature</span>
               <input v-model.number="presetTemp" type="number" step="0.1" min="0" max="2" placeholder="默认" />
@@ -401,6 +416,10 @@ void presetById;
             <span class="session-chip">兼容任意 OpenAI-compatible 端点</span>
           </div>
           <div class="mr-grid">
+            <div class="fg" style="grid-column: span 2">
+              <span class="microlabel">显示名称（可选，用于快速区分）</span>
+              <input v-model="customForm.displayName" type="text" :placeholder="customNameFallback" />
+            </div>
             <div class="fg">
               <span class="microlabel">Provider 家族</span>
               <select v-model="customForm.provider">
@@ -446,6 +465,10 @@ void presetById;
         <!-- 编辑已有配置（旧表单） -->
         <div v-if="editingModel" class="model-row" style="border: 2px solid var(--ink)">
           <div class="mr-grid">
+            <div class="fg" style="grid-column: span 2">
+              <span class="microlabel">显示名称（可选）</span>
+              <input v-model="editingModel.displayName" type="text" placeholder="留空 = 服务名 · 模型 ID" />
+            </div>
             <div class="fg" v-if="!editingModel.id">
               <span class="microlabel">Provider</span>
               <select v-model="editingModel.provider" disabled>

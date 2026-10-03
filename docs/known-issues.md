@@ -38,9 +38,15 @@
 
 ## model-config-ux 联调补充（2026-10-03）
 
-8. **预设清单数量勘误**：立项时提案写「26 个」，实施时按「pi-ai 目录 + 纯 API Key + 固定端点」标准逐个核对后为 **29 个**（国内 15 / 国际 12 / 聚合 2）；`opencode`/`opencode-go` 因无固定 baseUrl（动态网关）剔除。
-9. **预设静态目录会随 pi-ai 升级漂移**：快照测试（presets.test.ts）在升级 pi-ai 后需更新推荐模型；检索合并以服务端为准覆盖可用性。
+8. **预设清单两次勘误**（model-config-fixes）：model-config-ux 立项写「26 个」，实施核对为 29 个；随后复核发现该轮调查存在两个方法缺陷——只查了 provider 级 baseUrl（opencode/opencode-go 的端点存于模型条目 `https://opencode.ai/zen`、`/zen/go`），并把「带 OAuth 可选项」误当「不能只填 Key」（kimi-coding/meta/radius 均支持纯 API Key + 固定端点）。5 个误判项已在 model-config-fixes 补回，现共 **34 个**（国内 16 / 国际 13 / 聚合 5）。教训：端点核查须同时看 provider 级与 model 级；auth 含 OAuth 可选项时须确认纯 Key 通道是否可用再下结论。
+9. **预设静态目录会随 pi-ai 升级漂移**：快照测试（presets.test.ts）在升级 pi-ai 后需更新推荐模型；检索合并以服务端为准覆盖可用性。**github-copilot 维持排除**，理由更正为：订阅绑定 + token 交换动态鉴权（COPILOT_GITHUB_TOKEN 需换取会话 token 并注入动态 header）+ 模型清单随订阅变化（此前「无法只填 Key」的表述不准确）。
 10. **/models 检索的端点差异**：部分服务的 baseUrl 不以 /v1 结尾（如 Fireworks /inference），直接追加 /models 可能 404 → 按「检索失败可降级」处理（静态目录 + 手动输入兜底），不阻断配置。
 11. **Google 家族不支持 OpenAI 兼容 /models**：在线检索对 Google 预设返回可读降级提示，模型选择依赖静态目录（22 个）与手动输入。
 12. **自定义家族不跨端点复用 Key**：openai-compatible 不同 BaseURL 视为不同服务，Key 复用仅限预设 Provider（服务身份唯一），防止 Key 泄给无关端点（有单测锁定）。
 13. **应用内联调通过**（model_config 阶段）：预设目录离线可用、真实 tauri fetch 通道 /models 检索、合并去重、测试连接、同 Provider Key 复用（第二条配置获得独立钥匙串条目副本）全部通过。
+
+## model-config-fixes 补充（2026-10-03）
+
+14. **OpenCode Zen/Go 与 Radius 的 /models 在线检索支持情况未验证**：静态目录（79/29/28 个模型）与手动输入兜底可用；检索失败按既有降级路径弱提示。
+15. **kimi-coding 与 moonshotai 同厂易混**：前者是 Coding 订阅端点（api.kimi.com/coding），Key 与开放平台不通用；配置错误时由测试连接给出可读错误。
+16. **Radius 的 api 家族为 pi-messages（pi 自有协议）**：在线检索鉴权头按默认 Bearer 处理，如端点不支持则降级。
