@@ -99,7 +99,7 @@ async function startReview() {
 </script>
 
 <template>
-  <section class="page on">
+  <section class="page page-new on">
     <div class="new-wrap">
       <div class="new-left">
         <!-- 跳过引导后的接续提示（spec: onboarding 无模型状态的接续提示） -->
@@ -141,9 +141,9 @@ async function startReview() {
               <li v-for="e in startErrors" :key="e">{{ e }}</li>
             </ul>
           </div>
-          <div class="info-note">
-            本产品是审阅工具，不是编辑器：原文在此输入后于工作台中只读；系统只发现问题、解释问题、提出建议，不修改原文。
-          </div>
+        </div>
+        <div class="info-note">
+          本产品是审阅工具，不是编辑器：原文在此输入后于工作台中只读；系统只发现问题、解释问题、提出建议，不修改原文。
         </div>
       </div>
       <div class="new-right">

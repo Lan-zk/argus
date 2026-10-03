@@ -48,13 +48,22 @@ export function parseBlocks(text: string): DocumentBlock[] {
   });
 }
 
-/** 行内 Markdown → HTML（code/strong/em/link），输出已转义。 */
+/** 链接白名单：仅 http(s)/mailto。文档内容不可信，javascript:/data: 等 scheme 一律降级为纯文本。 */
+export function isSafeLinkHref(href: string): boolean {
+  return /^(?:https?:|mailto:)/i.test(href);
+}
+
+/** 行内 Markdown → HTML（code/strong/em/link），输出已转义；链接仅放行白名单 scheme。 */
 export function inlineMd(s: string): string {
   return esc(s)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label: string, href: string) =>
+      isSafeLinkHref(href)
+        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`
+        : label,
+    );
 }
 
 export function esc(s: string): string {
@@ -62,5 +71,6 @@ export function esc(s: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }

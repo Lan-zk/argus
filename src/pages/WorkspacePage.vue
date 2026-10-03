@@ -30,6 +30,9 @@ const catName = (id: string) => settings.categoryById(id)?.name ?? id;
 // ---- 分栏拖动（宽度持久化，spec: 双栏布局与独立滚动）----
 const splitPercent = computed(() => settings.ui.splitPercent ?? 60);
 const dragging = ref(false);
+/** 拖动中的 window 监听器：仅mouseup 正常移除；组件卸载时由 onBeforeUnmount 兜底，防泄漏。 */
+let dragMove: ((ev: MouseEvent) => void) | null = null;
+let dragUp: (() => void) | null = null;
 function onDividerDown(e: MouseEvent) {
   e.preventDefault();
   dragging.value = true;
@@ -44,10 +47,20 @@ function onDividerDown(e: MouseEvent) {
     dragging.value = false;
     window.removeEventListener("mousemove", move);
     window.removeEventListener("mouseup", up);
+    dragMove = null;
+    dragUp = null;
   };
+  dragMove = move;
+  dragUp = up;
   window.addEventListener("mousemove", move);
   window.addEventListener("mouseup", up);
 }
+onBeforeUnmount(() => {
+  if (dragMove) window.removeEventListener("mousemove", dragMove);
+  if (dragUp) window.removeEventListener("mouseup", dragUp);
+  dragMove = null;
+  dragUp = null;
+});
 
 // ---- 运行状态条（spec: 运行状态展示）----
 const STATUS_CLS: Record<string, string> = { completed: "ok", running: "run", failed: "fail" };
@@ -88,6 +101,24 @@ const filteredFindings = computed(() =>
 const catCount = (id: string) => session.findings.filter((f) => f.categoryId === id).length;
 
 // ---- 双向定位（spec: 高亮与双向定位）----
+/** 平滑滚动到容器目标位置；环境不执行平滑动画时（旧 WKWebView 等）退避为直接定位。 */
+function smoothScrollTop(container: HTMLElement, top: number) {
+  const before = container.scrollTop;
+  container.scrollTo({ top, behavior: "smooth" });
+  window.setTimeout(() => {
+    if (Math.abs(container.scrollTop - before) < 1) {
+      container.scrollTo({ top, behavior: "auto" });
+    }
+  }, 120);
+}
+
+/** 将 target 滚动到容器视觉中心（仅容器内滚动，不影响页面与其他栏）。 */
+function scrollCenter(container: HTMLElement, target: Element) {
+  const tr = target.getBoundingClientRect();
+  const cr = container.getBoundingClientRect();
+  smoothScrollTop(container, container.scrollTop + (tr.top + tr.height / 2 - (cr.top + cr.height / 2)));
+}
+
 async function onHighlightClick(ids: string[], anchorEl: HTMLElement) {
   if (ids.length > 1) {
     showPopover(anchorEl, ids);
@@ -102,7 +133,7 @@ async function locateRight(findingId: string) {
   ui.selectFinding(findingId);
   await nextTick();
   const el = cardsEl.value?.querySelector(`[data-fid="${findingId}"]`);
-  el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (el && cardsEl.value) scrollCenter(cardsEl.value, el);
 }
 
 let popState = ref<{ x: number; y: number; ids: string[] } | null>(null);
@@ -131,11 +162,7 @@ async function onCardSelect(findingId: string) {
   if (!f || !f.blockId || !docPaneEl.value) return;
   const target = docPaneEl.value.querySelector(`[data-block-id="${f.blockId}"]`);
   if (!target) return;
-  const pane = docPaneEl.value;
-  const tr = (target as HTMLElement).getBoundingClientRect();
-  const pr = pane.getBoundingClientRect();
-  const delta = tr.top + tr.height / 2 - (pr.top + pr.height / 2);
-  pane.scrollTo({ top: pane.scrollTop + delta, behavior: "smooth" });
+  scrollCenter(docPaneEl.value, target);
 }
 
 /** 报告回跳（spec: review-report 报告内回跳）。 */
@@ -189,7 +216,7 @@ watch(
     if (id && ui.sideTab === "findings") {
       await nextTick();
       const el = cardsEl.value?.querySelector(`[data-fid="${id}"]`);
-      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (el && cardsEl.value) scrollCenter(cardsEl.value, el);
     }
   },
 );

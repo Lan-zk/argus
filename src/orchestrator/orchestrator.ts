@@ -185,7 +185,12 @@ export class Orchestrator {
     const pool = new ConcurrencyPool(this.deps.concurrency ?? 3);
 
     const tasks = categories.map((category) =>
-      pool.run(() => this.runCategory(category, modelConfig, apiKey, nameOf(category.id))),
+      pool.run(async () => {
+        // 已取消：不再启动排队中的类别（保持 pending，由发起方整体重置状态；
+        // 不标记失败以避免触发 judgeSession 的无意义报告生成）
+        if (this.deps.signal?.aborted) return;
+        await this.runCategory(category, modelConfig, apiKey, nameOf(category.id));
+      }),
     );
     // 单项失败隔离：pool.run 的 reject 已在 runCategory 内消化，这里只需等全部终态
     await Promise.allSettled(tasks);
@@ -264,16 +269,17 @@ export class Orchestrator {
     } catch (err) {
       const appErr = (err as AppError)?.kind ? (err as AppError) : appError("unknown", "", err);
       run.status = "failed";
-      run.error = appErr.message;
+      run.error = this.deps.signal?.aborted ? "已取消本次审阅" : appErr.message;
       run.completedAt = new Date().toISOString();
       this.sink.putRun({ ...run });
-      dlog("执行", `${catName}：失败 → ${appErr.message}`, true);
+      dlog("执行", `${catName}：${run.error === "已取消本次审阅" ? "已取消" : `失败 → ${appErr.message}`}`, true);
     }
   }
 
   /** 整体状态判定（spec: review-orchestration 状态机）：全部终态后判 completed / partial_failed / failed。 */
   private async judgeSession(): Promise<void> {
     if (!this.session) return;
+    if (this.deps.signal?.aborted) return; // 已取消：不判终态、不生成报告（由发起方重置状态）
     const runs = [...this.runs.values()].filter((r) =>
       this.session!.selectedCategoryIds.includes(r.categoryId),
     );

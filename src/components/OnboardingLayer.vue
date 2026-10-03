@@ -3,13 +3,14 @@
 // 全屏覆盖、独立于三页导航；两步：pick（选服务商）→ configure（预设 Key+模型 / 自定义全字段）。
 // 逻辑复用 model-discovery / settings.addModel（keyring、首条默认、同 Provider 复用），UI 与 SettingsPage 零共享。
 // 主题兼容（design D6）：全部视觉属性经令牌引用，零硬编码色值；不透明 --paper 背景不透出主界面。
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useSettingsStore } from "../stores/settings";
 import { useOnboardingStore } from "../stores/onboarding";
 import { GROUP_ZH, MODEL_PRESETS } from "../domain/presets";
 import type { ModelPreset, PresetGroup } from "../domain/presets";
 import type { DiscoveredModel } from "../domain/types";
 import { catalogModels, customFetchInput, fetchRemoteModels, mergeModels, presetFetchInput } from "../ai/model-discovery";
+import { isPlainHttpRemote } from "../lib/url";
 
 const settings = useSettingsStore();
 const onboarding = useOnboardingStore();
@@ -114,6 +115,15 @@ function onKeyBlur() {
   presetKeyReused.value = false;
   blurTimer = setTimeout(() => void doFetchModels(), 300);
 }
+onBeforeUnmount(() => {
+  if (blurTimer) clearTimeout(blurTimer);
+});
+
+/** 明文 http 端点告警（安全审计）：非本机 http:// 会未加密传输 API Key。 */
+const HTTP_WARN = "⚠ 该地址为非本机的明文 HTTP 端点，API Key 将不经加密传输；建议改用 https，或确认仅用于本地/可信内网服务。";
+const customHttpWarn = computed(() =>
+  step.value.kind === "custom" && isPlainHttpRemote(customForm.value.baseUrl) ? HTTP_WARN : "",
+);
 
 const canSavePreset = computed(
   () => step.value.kind === "preset" && !!presetModelId.value && (!!presetKey.value.trim() || presetKeyReused.value),
@@ -284,6 +294,7 @@ watch(step, async () => {
         <label class="ob-field">
           <span class="microlabel">Base URL</span>
           <input v-model="customForm.baseUrl" type="text" data-test="ob-custom-baseurl" :placeholder="curLocal ? 'http://localhost:11434/v1' : 'https://…/v1'" />
+          <span v-if="customHttpWarn" class="microlabel" style="color: var(--danger)">{{ customHttpWarn }}</span>
         </label>
         <label class="ob-field">
           <span class="microlabel">API Key（本地服务可留空）</span>

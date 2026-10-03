@@ -129,6 +129,20 @@ describe("2.3 fetchRemoteModels 实时检索", () => {
     if (!r.ok) expect(r.reason).toContain("手动输入");
   });
 
+  it("非 http(s) 协议拒绝发起请求（安全审计回归：不放行 file:/data: 等 scheme）", async () => {
+    let called = false;
+    globalThis.fetch = (async () => {
+      called = true;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    for (const bad of ["file:///etc/models", "data:text/plain,x", "ftp://x.example"]) {
+      const r = await fetchRemoteModels({ baseUrl: bad, apiKey: "k", family: "openai-completions" });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toContain("协议");
+    }
+    expect(called).toBe(false);
+  });
+
   it("anthropic 家族带 anthropic-version 头", async () => {
     let seen: Headers | null = null;
     globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {

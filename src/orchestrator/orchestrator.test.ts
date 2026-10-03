@@ -227,6 +227,38 @@ describe("长文降级（spec: review-orchestration 降级两场景）", () => {
   });
 });
 
+describe("取消路径（安全审计修复：AbortSignal 全链路接入）", () => {
+  it("signal 已中止时：排队类别不启动（保持 pending）、不调模型、不生成报告", async () => {
+    const faux = fauxProvider({ models: [{ id: "faux" }] });
+    const models: MutableModels = createModels();
+    models.setProvider(faux.provider);
+    setModelsFactoryForTests(() => models);
+    let callCount = 0;
+    const responder: FauxResponseFactory = async () => {
+      callCount++;
+      return findingsToolCall(okFindings("逻辑"));
+    };
+    faux.setResponses([responder, responder, responder, responder]);
+
+    const ctl = new AbortController();
+    ctl.abort();
+    const sink = new MemSink();
+    const orch = new Orchestrator(sink, {
+      getApiKey: async () => "k",
+      concurrency: 1,
+      signal: ctl.signal,
+    });
+    await orch.start({ text: DOC, selectedCategories: CATS, modelConfig: MODEL });
+
+    expect(Object.values(sink.runs).map((r) => r.status)).toEqual(["pending", "pending"]);
+    expect(sink.findings).toHaveLength(0);
+    expect(sink.report).toBeNull();
+    expect(callCount).toBe(0);
+    // 已取消：不判终态（状态重置由发起方负责）
+    expect(sink.session?.status).toBe("running");
+  });
+});
+
 describe("单类重跑（spec: review-orchestration 重跑两场景）", () => {
   it("重跑只影响该类别：旧 findings 被替换，他类不变；重跑后报告重新生成", async () => {
     const faux = fauxProvider({ models: [{ id: "faux" }] });

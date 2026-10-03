@@ -36,9 +36,17 @@ export type FetchModelsResult =
   | { ok: true; models: DiscoveredModel[] }
   | { ok: false; reason: string; error?: import("../domain/errors").AppError };
 
-/** OpenAI 兼容约定的端点拼接：baseUrl 去尾斜杠 + /models（已含 /v1 的直接追加）。 */
-function modelsUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, "") + "/models";
+/**
+ * OpenAI 兼容约定的端点拼接：URL 规范化（丢弃 hash、保留 query）+ 去尾斜杠 + /models。
+ * 仅接受 http(s)（安全审计：拒绝 file:/data: 等 scheme 经 fetch 通道外发）。
+ */
+export function modelsUrl(baseUrl: string): string {
+  const u = new URL(baseUrl.trim());
+  if (u.protocol !== "https:" && u.protocol !== "http:") {
+    throw new Error(`不支持的 Base URL 协议「${u.protocol}」，仅支持 http/https`);
+  }
+  u.hash = "";
+  return `${(u.origin + u.pathname).replace(/\/+$/, "")}/models${u.search}`;
 }
 
 /**
@@ -57,8 +65,14 @@ export async function fetchRemoteModels(input: FetchModelsInput): Promise<FetchM
   if (input.family === "anthropic-messages" || input.family === "anthropic") {
     headers["anthropic-version"] = "2023-06-01";
   }
+  let url: string;
   try {
-    const res = await fetch(modelsUrl(input.baseUrl), { headers });
+    url = modelsUrl(input.baseUrl);
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : "Base URL 无效" };
+  }
+  try {
+    const res = await fetch(url, { headers });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       const appErr = classifyError(new Error(`HTTP ${res.status}: ${body.slice(0, 300)}`), [input.apiKey]);

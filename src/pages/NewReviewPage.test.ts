@@ -93,6 +93,14 @@ describe("启动失败的可见性", () => {
   });
 });
 
+describe("双栏独立滚动布局（spec: 新建审阅页双栏独立滚动与操作常驻）", () => {
+  it("根节点具备 page-new class（页面级不滚动、两栏各自滚动的结构前提）", async () => {
+    const { w } = await mountReady();
+    expect(w.find("section.page").classes()).toContain("page-new");
+    w.unmount();
+  });
+});
+
 describe("无模型接续提示（spec: onboarding 无模型状态的接续提示）", () => {
   it("跳过引导且无模型时显示两去向提示；配置模型后消失", async () => {
     await saveSettings(defaultSettings()); // 复位内存兜底存储：无模型、onboarded=false

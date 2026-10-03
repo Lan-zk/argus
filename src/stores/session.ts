@@ -83,6 +83,7 @@ export const useSessionStore = defineStore("session", {
       this.showRestoreBanner = false;
       const orchestrator = new Orchestrator(this.sink(), {
         getApiKey: (cfg) => settings.getApiKey(cfg),
+        signal: freshAbortSignal(),
       });
       try {
         await orchestrator.start({
@@ -116,6 +117,7 @@ export const useSessionStore = defineStore("session", {
       if (!model || !category) throw new Error("没有可用模型配置或类别");
       const orchestrator = new Orchestrator(this.sink(), {
         getApiKey: (cfg) => settings.getApiKey(cfg),
+        signal: freshAbortSignal(),
       });
       // 复位内存态到 orchestrator 可续跑的形状：重跑前回灌当前会话
       await orchestrator.resume(this.session!, this.document!, this.runs, this.findings, this.report);
@@ -156,6 +158,8 @@ export const useSessionStore = defineStore("session", {
 
     /** 清除并新建（spec: app-persistence 清除并新建场景）。 */
     async clearAndNew() {
+      activeAbort?.abort();
+      activeAbort = null;
       await clearLastReview();
       this.session = null;
       this.document = null;
@@ -177,3 +181,14 @@ export const useSessionStore = defineStore("session", {
 });
 
 export type SeverityFilter = Severity | "all";
+
+// ---- 取消通道（安全审计修复：AbortSignal 全链路预留但无人传入，请求挂起时资源无法回收）----
+/** 当前审阅的 AbortController（模块级，不进 Pinia state）。 */
+let activeAbort: AbortController | null = null;
+
+/** 发起新审阅/重跑前调用：中止上一条链路，返回新 signal。 */
+function freshAbortSignal(): AbortSignal {
+  activeAbort?.abort();
+  activeAbort = new AbortController();
+  return activeAbort.signal;
+}

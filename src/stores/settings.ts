@@ -8,6 +8,7 @@ import { rotationColor } from "../domain/palette";
 import { keyring } from "../lib/keyring";
 import { presetById } from "../domain/presets";
 import { defaultSettings, loadState, saveSettings } from "../lib/persistence";
+import { evictModelsCache } from "../ai/client";
 
 /** 内置类别 id 集合：兜底色轮转按「自定义类别数」计数（category-colors design D5）。 */
 const BUILTIN_IDS = new Set(DEFAULT_CATEGORIES.map((c) => c.id));
@@ -118,6 +119,7 @@ export const useSettingsStore = defineStore("settings", {
       const wasDefault = this.models.find((m) => m.id === id)?.isDefault;
       this.models = this.models.filter((m) => m.id !== id);
       await keyring.delete(id);
+      evictModelsCache(id);
       if (wasDefault && this.models[0]) this.models[0].isDefault = true;
       await this.persist();
     },

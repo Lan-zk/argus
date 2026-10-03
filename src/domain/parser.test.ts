@@ -1,6 +1,6 @@
 // spec: document-parsing 全部场景
 import { describe, expect, it } from "vitest";
-import { parseBlocks } from "./parser";
+import { esc, inlineMd, parseBlocks } from "./parser";
 
 describe("parseBlocks 基本元素识别", () => {
   it("标题/粗斜体/列表/引用/链接解析不中断", () => {
@@ -83,5 +83,37 @@ describe("行号索引", () => {
   it("CRLF 换行不影响解析", () => {
     const blocks = parseBlocks("a\r\n\r\nb");
     expect(blocks).toHaveLength(2);
+  });
+});
+
+describe("inlineMd 链接白名单（安全审计回归：防 javascript: 注入）", () => {
+  it("https 链接正常生成锚点并带 rel/target", () => {
+    const html = inlineMd("[官网](https://example.com/a?x=1)");
+    expect(html).toContain('<a href="https://example.com/a?x=1"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('target="_blank"');
+  });
+
+  it("javascript: 伪协议降级为纯文本，不生成锚点", () => {
+    const html = inlineMd("[点此领取](javascript:alert%281%29)");
+    expect(html).not.toContain("<a");
+    expect(html).not.toContain("javascript:");
+    expect(html).toContain("点此领取");
+  });
+
+  it("data:/file:/无 scheme 相对路径均不放行", () => {
+    for (const href of ["data:text/html,<b>x</b>", "file:///etc/passwd", "page.html", "JAVASCRIPT:x"]) {
+      expect(inlineMd(`[t](${href})`)).not.toContain("<a");
+    }
+  });
+
+  it("mailto 链接放行", () => {
+    expect(inlineMd("[mail](mailto:a@b.c)")).toContain('<a href="mailto:a@b.c"');
+  });
+
+  it("esc 转义单引号与尖括号，属性无法逃逸", () => {
+    expect(esc(`<'>&"`)).toBe("&lt;&#39;&gt;&amp;&quot;");
+    const html = inlineMd("[a](https://e.com) <img src=x onerror=alert(1)>");
+    expect(html).not.toContain("<img");
   });
 });

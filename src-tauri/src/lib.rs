@@ -54,16 +54,22 @@ fn keyring_probe(user: String) -> Result<KeyringProbe, String> {
     })
 }
 
+/// 开发联调（debug 构建限定）spike 文件路径：文件名仅允许纯名称，防 `../` 路径穿越。
+#[cfg(debug_assertions)]
+fn spike_path(app: &tauri::AppHandle, name: &str) -> Result<std::path::PathBuf, String> {
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err("invalid spike file name".to_string());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join(name))
+}
+
 /// 开发联调（debug 构建限定）：读取应用数据目录下的 spike 请求文件。
 /// release 构建返回 None，不参与生产逻辑。
 #[cfg(debug_assertions)]
 #[tauri::command]
 fn dev_spike_read(app: tauri::AppHandle, name: String) -> Result<Option<String>, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?;
-    let path = dir.join(name);
+    let path = spike_path(&app, &name)?;
     if !path.exists() {
         return Ok(None);
     }
@@ -76,12 +82,9 @@ fn dev_spike_read(app: tauri::AppHandle, name: String) -> Result<Option<String>,
 #[cfg(debug_assertions)]
 #[tauri::command]
 fn dev_spike_write(app: tauri::AppHandle, name: String, content: String) -> Result<(), String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(name), content).map_err(|e| e.to_string())
+    let path = spike_path(&app, &name)?;
+    std::fs::create_dir_all(path.parent().expect("spike path has parent")).map_err(|e| e.to_string())?;
+    std::fs::write(path, content).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

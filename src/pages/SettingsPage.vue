@@ -2,7 +2,7 @@
 // Settings 页（spec: settings 全部场景 + model-config-ux）。
 // Models 新增两步流程：pick（预设卡片/自定义连接）→ configure（预设只填 Key + 模型下拉；自定义全字段）。
 // Key 失焦自动检索 + 手动刷新；同 Provider 复用钥匙串 Key；测试连接复用现有错误分类。
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { useSettingsStore } from "../stores/settings";
 import { PROVIDERS, PROVIDER_ZH, isFourFamily } from "../domain/types";
 import type { DiscoveredModel, ModelConfig } from "../domain/types";
@@ -12,6 +12,7 @@ import { DEFAULT_CATEGORIES } from "../domain/default-categories";
 import { catalogModels, customFetchInput, fetchRemoteModels, mergeModels, presetFetchInput } from "../ai/model-discovery";
 import { testConnection } from "../ai/test-connection";
 import { keyring } from "../lib/keyring";
+import { isPlainHttpRemote } from "../lib/url";
 import { resolveTheme } from "../lib/theme";
 import { useThemeStore } from "../stores/theme";
 import { useOnboardingStore } from "../stores/onboarding";
@@ -158,6 +159,9 @@ function onKeyBlur() {
   presetKeyReused.value = false;
   blurTimer = setTimeout(() => void doFetchModels(), 300);
 }
+onBeforeUnmount(() => {
+  if (blurTimer) clearTimeout(blurTimer);
+});
 
 async function savePreset() {
   if (addFlow.value?.kind !== "preset" || !presetModelId.value) return;
@@ -197,6 +201,10 @@ async function initCustomConfigure(local: boolean) {
 function needsBaseUrl(p: string) {
   return p === "openai-compatible";
 }
+
+/** 明文 http 端点告警（安全审计）：非本机 http:// 会未加密传输 API Key。 */
+const HTTP_WARN = "⚠ 该地址为非本机的明文 HTTP 端点，API Key 将不经加密传输；建议改用 https，或确认仅用于本地/可信内网服务。";
+const httpWarn = (baseUrl: string | undefined) => (baseUrl && isPlainHttpRemote(baseUrl) ? HTTP_WARN : "");
 
 const customNameFallback = computed(() => {
   const f = customForm.value;
@@ -336,6 +344,12 @@ void presetById;
             <b>{{ m.displayName || m.model }}</b>
             <span v-if="m.displayName" class="session-chip">{{ m.model }}</span>
             <span v-if="m.baseUrl" class="session-chip">{{ m.baseUrl }}</span>
+            <span
+              v-if="m.baseUrl && isPlainHttpRemote(m.baseUrl)"
+              class="microlabel"
+              style="color: var(--danger)"
+              title="非本机明文 HTTP 端点：API Key 将不经加密传输"
+            >⚠ 明文 HTTP</span>
             <span v-if="m.isDefault" class="microlabel" style="color: var(--accent)">默认</span>
             <span class="spacer" style="flex: 1"></span>
             <button v-if="!m.isDefault" class="mini" @click="settings.setDefaultModel(m.id)">设为默认</button>
@@ -475,6 +489,7 @@ void presetById;
             <div class="fg g2">
               <span class="microlabel">Base URL</span>
               <input v-model="customForm.baseUrl" type="text" placeholder="https://…/api/paas/v4" />
+              <span v-if="httpWarn(customForm.baseUrl)" class="microlabel" style="color: var(--danger)">{{ httpWarn(customForm.baseUrl) }}</span>
             </div>
             <div class="fg g2">
               <span class="microlabel">API Key</span>
@@ -569,6 +584,7 @@ void presetById;
             <div class="fg g2" v-if="needsBaseUrl(String(editingModel.provider))">
               <span class="microlabel">Base URL</span>
               <input v-model="editingModel.baseUrl" type="text" />
+              <span v-if="httpWarn(editingModel.baseUrl)" class="microlabel" style="color: var(--danger)">{{ httpWarn(editingModel.baseUrl) }}</span>
             </div>
             <div class="fg">
               <span class="microlabel">Temperature</span>

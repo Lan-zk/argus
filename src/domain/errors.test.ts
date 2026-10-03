@@ -78,6 +78,16 @@ describe("Key 脱敏", () => {
     expect(out).not.toContain("sk-abcd1234567890abcdef");
     expect(out).not.toContain("token1234567890abcdef");
   });
+
+  it("400 分支同样透传 knownKeys：网关回显的非 sk- 格式 Key 不出现在文案（安全审计回归）", () => {
+    const key = "AIzaSyA1234567890abcdefghijklmnopqrstuv"; // Google 形态,不被样式规则命中
+    const e = classifyError(
+      new Error(`HTTP 400: {"error":{"message":"invalid request for key ${key}"}}`),
+      [key],
+    );
+    expect(e.kind).toBe("invalid_request");
+    expect(e.message).not.toContain(key);
+  });
 });
 
 describe("重试策略（spec: ai-runtime 重试两场景）", () => {

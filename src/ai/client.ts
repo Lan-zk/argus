@@ -195,6 +195,14 @@ export function resetModelsCacheForTests(): void {
   modelsFactory = createModels;
 }
 
+/** 删除模型配置后清理其缓存条目（自定义连接按配置 id 前缀；安全审计修复：缓存只增不减）。 */
+export function evictModelsCache(configId: string): void {
+  const prefix = `${configId}:`;
+  for (const key of [...modelsCache.keys()]) {
+    if (key.startsWith(prefix)) modelsCache.delete(key);
+  }
+}
+
 /** 目录里没有的模型名 → 手工构建 Model 定义（api 按 Provider 家族）。 */
 function manualModel(cfg: ModelConfig): Model<string> {
   switch (cfg.provider) {

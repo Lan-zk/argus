@@ -6,6 +6,7 @@
 import { computed } from "vue";
 import type { DocumentBlock, Finding } from "../domain/types";
 import { inlineMd } from "../domain/parser";
+import { openExternal } from "../lib/opener";
 
 const props = withDefaults(
   defineProps<{
@@ -86,6 +87,17 @@ function onHlClick(e: MouseEvent, ids: string[]) {
   e.stopPropagation();
   emit("highlight-click", ids, e.currentTarget as HTMLElement);
 }
+
+/** 文档内链接统一交系统打开：capture 阶段拦截（先于高亮 span 的 stopPropagation），阻断 WebView 内导航。 */
+function onDocClickCapture(e: MouseEvent) {
+  const a = (e.target as HTMLElement | null)?.closest?.("a");
+  if (!a) return;
+  const href = a.getAttribute("href");
+  if (!href) return;
+  e.preventDefault();
+  e.stopPropagation();
+  void openExternal(href);
+}
 function onHlEnter(ids: string[]) {
   emit("highlight-hover", ids);
 }
@@ -102,12 +114,13 @@ function segClass(seg: RenderBlock["segments"][number]): Record<string, boolean>
 </script>
 
 <template>
-  <div class="docbody" :class="{ 'show-lines': showLines !== false }">
+  <div class="docbody" :class="{ 'show-lines': showLines !== false }" @click.capture="onDocClickCapture">
     <component
       :is="rb.tag"
       v-for="rb in rendered"
       :key="rb.block.id"
       :class="rb.cls"
+      :data-block-id="rb.block.id"
     >
       <span v-if="showLines !== false" class="bid">L{{ rb.block.line }}</span
       ><template v-for="(seg, i) in rb.segments" :key="i"

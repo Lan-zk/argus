@@ -1,5 +1,5 @@
 // spec: review-ui 只读原文渲染 + 高亮切片 + 重叠叠加 + unanchored 无高亮
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import DocViewer from "./DocViewer.vue";
 import { parseBlocks } from "../domain/parser";
@@ -40,6 +40,17 @@ describe("渲染保留结构（spec: 只读原文渲染）", () => {
     const ids = w.findAll(".bid").map((b) => b.text());
     expect(ids[0]).toContain("L1");
     expect(ids).toHaveLength(blocks.length);
+  });
+});
+
+describe("块定位锚点属性（spec: 高亮与双向定位 · 点卡片滚动到原文）", () => {
+  it("每个渲染块输出 data-block-id，供卡片定位查找原文块", () => {
+    const w = mount(DocViewer, {
+      props: { blocks, findings: [], colorMap: colorMap() },
+    });
+    const withAttr = w.findAll("[data-block-id]");
+    expect(withAttr).toHaveLength(blocks.length);
+    expect(withAttr.map((el) => el.attributes("data-block-id"))).toEqual(blocks.map((b) => b.id));
   });
 });
 
@@ -96,5 +107,20 @@ describe("重叠 Finding 支持（spec: 同句多问题）", () => {
     expect(ev).toBeTruthy();
     expect((ev![0][0] as string[]).sort()).toEqual(["fa", "fb"]);
     expect(inner.classes()).toContain("sel");
+  });
+});
+
+describe("文档内链接安全（安全审计回归：外链交系统打开，不进入 WebView 导航）", () => {
+  it("https 链接渲染为锚点；点击被拦截并经 window.open 外开（非 Tauri 环境）", async () => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    const doc = "参见 [官方文档](https://example.com/guide)。\n\n正文说明。";
+    const w = mount(DocViewer, {
+      props: { blocks: parseBlocks(doc), findings: [], colorMap: {} },
+    });
+    const a = w.find("a");
+    expect(a.exists()).toBe(true);
+    await a.trigger("click");
+    expect(openSpy).toHaveBeenCalledWith("https://example.com/guide", "_blank", "noopener,noreferrer");
+    openSpy.mockRestore();
   });
 });

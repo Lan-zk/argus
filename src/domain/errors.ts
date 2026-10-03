@@ -111,7 +111,7 @@ export function classifyError(err: unknown, knownKeys: string[] = []): AppError 
     return appError("context_overflow", "", cause);
   if (status !== null && status >= 500) return appError("provider_server_error", "", cause);
   if (status === 400)
-    return appError("invalid_request", redactSnippet(raw));
+    return appError("invalid_request", redactSnippet(raw, knownKeys));
 
   if (/timeout|timed?\s*out|ETIMEDOUT|AbortError/i.test(raw))
     return appError("timeout", "", cause);
@@ -130,8 +130,8 @@ export function classifyError(err: unknown, knownKeys: string[] = []): AppError 
 }
 
 /** 片段化：脱敏后截断到 120 字符，供错误文案内嵌原始原因。 */
-function redactSnippet(text: string): string {
-  const clean = redact(text).replace(/\s+/g, " ").trim();
+function redactSnippet(text: string, knownKeys: string[] = []): string {
+  const clean = redact(text, knownKeys).replace(/\s+/g, " ").trim();
   return clean.length > 120 ? `${clean.slice(0, 120)}…` : clean || "无详细信息";
 }
 

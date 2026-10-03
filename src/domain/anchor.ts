@@ -43,6 +43,9 @@ export interface AnchorInput {
   suggestion: string;
 }
 
+/** 单条 quote 的候选命中上限：畸形输入（重复文本刷屏）时截断，防止 CPU 放大拖死 UI。 */
+const MAX_CANDIDATES = 200;
+
 /**
  * 对一条 Finding 执行三步定位，写入 blockId / startOffset / endOffset / line。
  * 内容无命中时保留为 unanchored（右侧显示、左侧不高亮）。
@@ -63,15 +66,17 @@ export function anchorOne(f: AnchorInput, blocks: DocumentBlock[], catName: stri
   // 候选的精确命中行 = 块起始行 + 块内换行数（同块多命中时行号消歧才有效）
   const lineOf = (b: DocumentBlock, s: number) => b.line + (b.plainText.slice(0, s).match(/\n/g) || []).length;
 
-  // ① 内容匹配：quote 归一化后在全文范围收集候选（忽略空白差异）
+  // ① 内容匹配：quote 归一化后在全文范围收集候选（忽略空白差异，候选数有上限）
   const cands: { b: DocumentBlock; s: number; e: number; line: number }[] = [];
   for (const b of blocks) {
+    if (cands.length >= MAX_CANDIDATES) break;
     const { n, map } = normMap(b.plainText);
     let k = n.indexOf(hq);
     while (k !== -1) {
       const s = map[k];
       const e = map[k + hq.length - 1] + 1;
       cands.push({ b, s, e, line: lineOf(b, s) });
+      if (cands.length >= MAX_CANDIDATES) break;
       k = n.indexOf(hq, k + 1);
     }
   }
