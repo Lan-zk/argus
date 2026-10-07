@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+// 诊断：跑一轮真实审阅后读工作台 DOM 的关键数值
+import { spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const URL_APP = "http://localhost:1420";
+const DOC = `远程办公正在重塑城市的生活节奏。过去三年里，越来越多的知识工作者选择离开一线城市，搬到成本更低的小城镇生活。有人据此断言，办公室的时代已经终结，城市将不可避免地走向衰落。
+这种结论下得为时过早。远程办公的确改变了部分行业的用工方式，但协同密集型的工作仍然高度依赖面对面的交流。研究显示，视频会议无法完全替代白板前的即兴讨论。
+更重要的是，人口流动的数据并不支持单一方向的判断。部分年轻人回流大城市的同时，也有另一批人在小城扎根创业。`;
+
+const findChrome = () => {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  for (const n of ["google-chrome", "chromium", "microsoft-edge"]) {
+    const r = spawnSync("which", [n], { encoding: "utf8" });
+    if (r.status === 0 && r.stdout.trim()) return r.stdout.trim();
+  }
+  return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+};
+const profile = mkdtempSync(join(tmpdir(), "argus-diag-"));
+const chrome = spawn(findChrome(), ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--hide-scrollbars", "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+process.on("exit", () => { try { chrome.kill(); } catch {} try { rmSync(profile, { recursive: true, force: true }); } catch {} });
+const wsUrl = await new Promise((ok) => { let b = ""; chrome.stderr.on("data", (d) => { b += d; const m = b.match(/DevTools listening on (ws:\/\/\S+)/); if (m) ok(m[1]); }); });
+const ws = new WebSocket(wsUrl);
+await new Promise((ok) => { ws.onopen = ok; });
+let seq = 0; const pending = new Map(); const listeners = [];
+ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { const p = pending.get(m.id); pending.delete(m.id); m.error ? p.no(new Error(m.error.message)) : p.ok(m.result); } else if (m.method) listeners.forEach((f) => f(m)); };
+const send = (m, p = {}, sid) => new Promise((ok, no) => { const id = ++seq; pending.set(id, { ok, no }); ws.send(JSON.stringify({ id, method: m, params: p, ...(sid ? { sessionId: sid } : {}) })); });
+const { targetId } = await send("Target.createTarget", { url: "about:blank" });
+const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
+const cdp = (m, p) => send(m, p, sessionId);
+await cdp("Page.enable"); await cdp("Runtime.enable");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const js = async (code) => { const r = await cdp("Runtime.evaluate", { expression: code, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description?.split("\n")[0]); return r.result.value; };
+
+await cdp("Emulation.setDeviceMetricsOverride", { width: 1240, height: 800, deviceScaleFactor: 1, mobile: false });
+await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
+await cdp("Page.navigate", { url: URL_APP });
+await sleep(1500);
+await js(`(async () => {
+  const dc = (sel) => { const el = document.querySelector(sel); if (!el) throw new Error("找不到：" + sel); el.click(); };
+  const sv = (sel, v) => { const el = document.querySelector(sel); el.focus(); el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); };
+  const wait = (fn, ms, tag) => new Promise((ok, no) => { const t0 = Date.now(); const tick = () => { let v; try { v = fn(); } catch (e) { v = null; } if (v) return ok(v); if (Date.now() - t0 > ms) return no(new Error("超时：" + tag)); setTimeout(tick, 150); }; tick(); });
+  dc('.ob-alt .ob-card');
+  await wait(() => document.querySelector('.ob-fields input'));
+  sv('[data-test=ob-custom-baseurl]', 'http://127.0.0.1:8932/v1');
+  sv('.ob-fields input[type=password]', 'sk-mock');
+  sv('[data-test=ob-custom-model]', 'mock-pro');
+  await new Promise(r => setTimeout(r, 250));
+  dc('[data-test=ob-save]');
+  await wait(() => !document.querySelector('.ob-layer'), 10000, '关闭引导');
+  sv('.doc-input', ${JSON.stringify(DOC)});
+  await new Promise(r => setTimeout(r, 300));
+  dc('.new-actions .cta');
+  await new Promise(r => setTimeout(r, 6000));
+  const badge = document.querySelector('.ws-statusbar .badge')?.textContent?.trim();
+  const cards = document.querySelectorAll('.sidepane .card').length;
+  const runcells = [...document.querySelectorAll('.runcell .rc-top b')].map((b) => b.textContent + ':' + (b.closest('.runcell').querySelector('.rc-status')?.textContent?.trim() || ''));
+  const stats = [...document.querySelectorAll('.ws-stat')].map((s) => s.textContent?.replace(/\\s+/g, ' ').trim());
+  const report = !!document.querySelector('.side-tab:nth-of-type(2)');
+  return { badge, cards, runcells, stats, report, errs: [...document.querySelectorAll(".rc-status.fail")].map((e) => e.textContent.trim()).slice(0, 2) };
+})()`).then((v) => console.log(JSON.stringify(v, null, 1))).catch((e) => console.log("诊断失败：", e.message));
+chrome.kill();
+process.exit(0);

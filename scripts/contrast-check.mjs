@@ -1,6 +1,7 @@
 // 一次性对比度校验脚本（spec: theme-system 主题内色彩可辨识 / category-colors 调色板）。
 // 解析 src/styles/tokens.css 的四组合令牌块，计算 WCAG 对比度：
-//   正文（--ink / --ink70 合成）对 paper/paper2/card ≥ 4.5:1；
+//   正文（--ink / --ink70 / --ink50 合成）对 paper/paper2/card ≥ 4.5:1（ink50 亦按正文级校验——
+//   契约：实义微标签与次要说明使用 ink50，四组合必须全部 AA）；
 //   图形/强调（类别色、调色板 --p*、accent、danger、ochre、gray、徽章文字）对所在底 ≥ 3:1。
 // 算法复用 src/lib/contrast.ts（与 UI 低对比提示同一实现）。
 // 用法：node scripts/contrast-check.mjs   （任一硬性项不达标 → exit 1）
@@ -41,7 +42,7 @@ const PALETTE_KEYS = Array.from({ length: 10 }, (_, i) => `p${i + 1}`);
 const checks = [
   ...["paper", "paper2", "card"].map((bg) => ({ fg: "ink", bg, min: 4.5, level: "HARD", what: "正文" })),
   ...["paper", "card"].map((bg) => ({ fg: "ink70", bg, min: 4.5, level: "HARD", what: "次级文本(70%)" })),
-  { fg: "ink50", bg: "paper", min: 3, level: "WARN", what: "微标签(50%)" },
+  ...["paper", "card"].map((bg) => ({ fg: "ink50", bg, min: 4.5, level: "HARD", what: "微标签(50%)" })),
   ...["paper", "card"].flatMap((bg) => [
     { fg: "accent", bg, min: 3, level: "HARD", what: "强调色" },
     { fg: "danger", bg, min: 3, level: "HARD", what: "危险色" },

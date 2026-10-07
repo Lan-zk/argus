@@ -1,12 +1,14 @@
 // spec: finding-pipeline 去重两场景
 import { describe, expect, it } from "vitest";
 import { dedupFindings, similarity } from "./dedup";
+import { withAnchors } from "./anchor";
 import type { Finding } from "./types";
 
 let n = 0;
 function mk(over: Partial<Finding> = {}): Finding {
-  return {
+  const f: Finding = {
     id: `f${++n}`,
+    anchors: [],
     categoryId: "logic",
     severity: "medium",
     title: "绝对化措辞",
@@ -17,6 +19,7 @@ function mk(over: Partial<Finding> = {}): Finding {
     anchorStatus: "unanchored",
     ...over,
   };
+  return f.anchors.length > 0 ? f : withAnchors(f);
 }
 
 describe("同类明显重复被合并", () => {

@@ -33,7 +33,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "minimax-cn", name: "MiniMax", en: "MiniMax", group: "cn", region: "国内端点", recommendedModel: "MiniMax-M2.7" },
   { id: "qwen-token-plan", name: "阿里 Qwen", en: "Qwen Token Plan", group: "cn", region: "海外区", recommendedModel: "qwen3.8-max" },
   { id: "qwen-token-plan-cn", name: "阿里 Qwen", en: "Qwen Token Plan", group: "cn", region: "国内区", recommendedModel: "qwen3.8-max" },
-  { id: "qwen-token-plan-individual", name: "阿里 Qwen", en: "Qwen Token Plan", group: "cn", region: "个人版", recommendedModel: "glm-5.2" },
+  { id: "qwen-token-plan-individual", name: "阿里 Qwen", en: "Qwen Token Plan", group: "cn", region: "个人版", recommendedModel: "qwen3.8-max" },
   { id: "xiaomi", name: "小米 MiMo", en: "Xiaomi MiMo", group: "cn", region: "国际端点", recommendedModel: "mimo-v2.5-pro" },
   { id: "xiaomi-token-plan-cn", name: "小米 MiMo", en: "Xiaomi MiMo", group: "cn", region: "国内区", recommendedModel: "mimo-v2.5-pro" },
   { id: "xiaomi-token-plan-ams", name: "小米 MiMo", en: "Xiaomi MiMo", group: "cn", region: "欧洲区", recommendedModel: "mimo-v2.5-pro" },

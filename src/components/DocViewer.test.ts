@@ -3,15 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import DocViewer from "./DocViewer.vue";
 import { parseBlocks } from "../domain/parser";
-import { anchorOne } from "../domain/anchor";
+import { anchorOne, withAnchors } from "../domain/anchor";
 import type { Finding } from "../domain/types";
 
 const DOC = "# 标题\n\n这是第一段，包含目标语句供定位。\n\n> 引用块内容\n\n- 列表项\n\n```\ncode line\n```";
 const blocks = parseBlocks(DOC);
 
 function finding(over: Partial<Finding> = {}): Finding {
-  return {
+  const f: Finding = {
     id: "f1",
+    anchors: [],
     categoryId: "logic",
     severity: "high",
     title: "推理跳跃",
@@ -22,6 +23,7 @@ function finding(over: Partial<Finding> = {}): Finding {
     anchorStatus: "unanchored",
     ...over,
   };
+  return f.anchors.length > 0 ? f : withAnchors(f);
 }
 
 function colorMap(): Record<string, string> {
@@ -122,5 +124,58 @@ describe("文档内链接安全（安全审计回归：外链交系统打开，�
     await a.trigger("click");
     expect(openSpy).toHaveBeenCalledWith("https://example.com/guide", "_blank", "noopener,noreferrer");
     openSpy.mockRestore();
+  });
+});
+
+describe("多锚渲染（spec: finding-anchor-spans）", () => {
+  /** 预定位锚：主锚行范围 L3（block_002）+ 引用锚（block_001 标题）。 */
+  function rangeFinding(over: Partial<Finding> = {}): Finding {
+    return finding({
+      anchors: [
+        { role: "primary", scope: "range", quote: "目标语句", lineHint: 3, blockId: "block_002", line: 3, fromLine: 3, toLine: 3, anchorStatus: "anchored" },
+        { role: "ref", scope: "quote", quote: "标题", lineHint: 1, blockId: "block_001", line: 1, startOffset: 0, endOffset: 2, anchorStatus: "anchored" },
+      ],
+      ...over,
+    });
+  }
+
+  it("行范围主锚：覆盖块带 range 背景类，点击块触发 highlight-click 归属该 Finding", async () => {
+    const w = mount(DocViewer, {
+      props: { blocks, findings: [rangeFinding()], colorMap: colorMap() },
+    });
+    const blk = w.find('[data-block-id="block_002"]');
+    expect(blk.classes()).toContain("range");
+    await blk.trigger("click");
+    const ev = w.emitted("highlight-click");
+    expect(ev).toBeTruthy();
+    expect(ev![0][0]).toEqual(["f1"]);
+  });
+
+  it("引用锚：标题块内句级切片为 .hl.ref 弱化样式，不占主锚叠加计数", () => {
+    const w = mount(DocViewer, {
+      props: { blocks, findings: [rangeFinding()], colorMap: colorMap() },
+    });
+    const blk = w.find('[data-block-id="block_001"]');
+    const ref = blk.findAll(".hl").find((h) => h.text() === "标题")!;
+    expect(ref.classes()).toContain("ref");
+    expect(ref.classes().some((c) => /^u\d$/.test(c))).toBe(false);
+  });
+
+  it("行范围与句级高亮共存：同一块既有 range 背景又有另一 Finding 的句级下划线", () => {
+    const other = anchorOne(finding({ id: "f2", categoryId: "rhetoric", quote: "目标语句" }), blocks, "修辞");
+    const w = mount(DocViewer, {
+      props: { blocks, findings: [rangeFinding(), other], colorMap: colorMap() },
+    });
+    const blk = w.find('[data-block-id="block_002"]');
+    expect(blk.classes()).toContain("range");
+    const strong = blk.findAll(".hl").find((h) => h.text() === "目标语句")!;
+    expect(strong.classes()).toContain("u1");
+  });
+
+  it("选中行范围 Finding → 覆盖块进入 range-sel 态", () => {
+    const w = mount(DocViewer, {
+      props: { blocks, findings: [rangeFinding()], colorMap: colorMap(), selectedFindingId: "f1" },
+    });
+    expect(w.find('[data-block-id="block_002"]').classes()).toContain("range-sel");
   });
 });

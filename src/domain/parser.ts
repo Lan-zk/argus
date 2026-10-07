@@ -2,9 +2,10 @@
 // 空行分组 + 行号索引 + 稳定 ID；定位基准 = 行号 + 内容 + hash，审阅基于全文。
 
 import type { BlockType, DocumentBlock } from "./types";
+import { normalizeNewlines } from "./normalize";
 
 export function parseBlocks(text: string): DocumentBlock[] {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const lines = normalizeNewlines(text).split("\n");
   const groups: { lines: string[]; line: number }[] = [];
   let cur: { lines: string[]; line: number } | null = null;
   lines.forEach((ln, i) => {

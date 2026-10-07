@@ -26,6 +26,13 @@
         }
       ]
     },
-    "store:default"
+    "sql:default",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "dialog:allow-open",
+    "fs:allow-read-text-file",
+    "fs:allow-read-file",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

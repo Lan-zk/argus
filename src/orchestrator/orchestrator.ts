@@ -14,7 +14,7 @@ import type {
 import { parseBlocks } from "../domain/parser";
 import { assemblePrompt, renderNumberedDocument } from "../domain/prompts";
 import { normalizeFindings } from "../domain/normalizer";
-import { anchorOne } from "../domain/anchor";
+import { anchorFinding } from "../domain/anchor";
 import { dedupFindings } from "../domain/dedup";
 import { dlog } from "../domain/log";
 import { appError, type AppError } from "../domain/errors";
@@ -91,7 +91,8 @@ export class Orchestrator {
   }
 
   private nextFindingId(): string {
-    return `f${this.fidSeq++}`;
+    // 带会话前缀：findings.id 是全局主键，多轮间 f1/f2 会互相碰撞（轮间 id 唯一化修复）
+    return `${this.session?.id ?? "s"}_f${this.fidSeq++}`;
   }
 
   /** 开始一次审阅（PRD §24 流程 1–5）。 */
@@ -255,7 +256,7 @@ export class Orchestrator {
       if (normalized.dropped > 0) {
         dlog("规范化", `${catName}：丢弃 ${normalized.dropped} 条无效 Finding`);
       }
-      const anchored = normalized.findings.map((f) => anchorOne(f, this.document!.blocks, catName));
+      const anchored = normalized.findings.map((f) => anchorFinding(f, this.document!.blocks, catName));
       const finalFindings = dedupFindings(anchored, catName);
 
       // 替换该类别 findings 并发布（重跑路径同样生效）

@@ -9,8 +9,15 @@ import * as http from "node:http";
 
 const PORT = Number(process.env.MOCK_PORT || 8931);
 
+// CORS：浏览器 dev 模式（纯 vite，原生 fetch）下联调用；tauri 侧经 Rust 通道不受影响。
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "authorization, content-type",
+};
+
 function sse(res, chunks) {
-  res.writeHead(200, { "content-type": "text/event-stream" });
+  res.writeHead(200, { "content-type": "text/event-stream", ...CORS_HEADERS });
   for (const c of chunks) res.write(`data: ${JSON.stringify(c)}\n\n`);
   res.write("data: [DONE]\n\n");
   res.end();
@@ -60,20 +67,30 @@ function firstFindingId(bodyText) {
 }
 
 const server = http.createServer((req, res) => {
+  if (req.method === "OPTIONS") {
+    // 回显预检请求头：OpenAI SDK 会带 x-stainless-* 等额外头，固定白名单会挡掉真实客户端
+    const requested = req.headers["access-control-request-headers"];
+    res.writeHead(204, {
+      ...CORS_HEADERS,
+      ...(requested ? { "access-control-allow-headers": requested } : {}),
+    });
+    res.end();
+    return;
+  }
   // OpenAI 兼容模型列表端点（model-config-ux 联调用）
   if (req.url?.includes("/models")) {
     const auth = req.headers["authorization"] || "";
     if (!/^Bearer \S+/.test(auth)) {
-      res.writeHead(401, { "content-type": "application/json" });
+      res.writeHead(401, { "content-type": "application/json", ...CORS_HEADERS });
       res.end(JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request_error", code: "invalid_api_key" } }));
       return;
     }
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(200, { "content-type": "application/json", ...CORS_HEADERS });
     res.end(JSON.stringify({ object: "list", data: [{ id: "mock-chat" }, { id: "mock-pro" }, { id: "mock-flash" }] }));
     return;
   }
   if (req.url === "/test") {
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(200, { "content-type": "application/json", ...CORS_HEADERS });
     res.end(JSON.stringify({ ok: true, server: "argus-mock" }));
     return;
   }
@@ -87,7 +104,7 @@ const server = http.createServer((req, res) => {
   req.on("end", () => {
     const auth = req.headers["authorization"] || "";
     if (!/^Bearer \S+/.test(auth)) {
-      res.writeHead(401, { "content-type": "application/json" });
+      res.writeHead(401, { "content-type": "application/json", ...CORS_HEADERS });
       res.end(JSON.stringify({ error: { message: "Incorrect API key provided", type: "invalid_request_error", code: "invalid_api_key" } }));
       return;
     }
@@ -105,7 +122,8 @@ const server = http.createServer((req, res) => {
       sse(res, toolCallChunks(model, "submit_report", args));
       return;
     }
-    // 类别审阅：两条 findings，quote 取自请求中的真实句子（第 0、1 段命中）
+    // 类别审阅：三条 findings，quote 取自请求中的真实句子（第 0、1 段命中）。
+    // 第三条演示 span/refs 多锚输出（spec: finding-anchor-spans）：行范围主锚 + 指向第 1 段的引用锚。
     const q0 = extractQuote(body, 0);
     const q1 = extractQuote(body, 1);
     const args = JSON.stringify({
@@ -129,6 +147,17 @@ const server = http.createServer((req, res) => {
           problem: "表述缺乏信息量。",
           reason: "空洞评价不构成论证。",
           suggestion: "替换为具体陈述。",
+        },
+        {
+          severity: "medium",
+          title: "结论扩大（多锚演示）",
+          quote: q0.quote,
+          lineHint: q0.lineHint,
+          span: { fromLine: Math.max(1, q0.lineHint - 1), toLine: q0.lineHint + 2 },
+          refs: [{ quote: q1.quote, lineHint: q1.lineHint, contentHash: "deadbeef" }],
+          problem: "末段结论把第 1 段的单一铺垫扩大为全称判断（整段范围问题，引用见第 1 段）。",
+          reason: "论据只覆盖个案，结论按全称表述。",
+          suggestion: "把结论限定到论据覆盖的范围。",
         },
       ],
     });

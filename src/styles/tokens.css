@@ -2,21 +2,23 @@
    令牌分层：颜色令牌按「主题 × 明暗」四组合各自定值；形状令牌仅随主题轴（swiss/apple）变化。
    :root = swiss-light（默认），取值与主题系统引入前完全一致。
    语义拆分：--accent 品牌强调（随主题走）；--danger 错误/高危/失败（恒红系）。
-   Apple 取值依据根目录 DESIGN.md（Apple-design-analysis）：--accent=Action Blue（暗面 Sky Blue）、
-   --accent-focus=Focus Blue（仅焦点环）、--cta=填充式主按钮蓝（明暗同用 Action Blue）、
+   --accent-focus 焦点环专用：swiss 下取墨色（评审 2026-10：与错误红区分焦点与报错），
+   apple 下取 Focus Blue（系统惯例）。
+   Apple 取值依据 design/Apple-design-analysis.md：--accent=Action Blue（暗面 Sky Blue）、
+   --cta=填充式主按钮蓝（明暗同用 Action Blue）、--cta-hover=CTA 按压加深（由 --cta 派生）、
    chrome 零阴影（浮层走毛玻璃）、卡片 18px / 工具件 8px / CTA 全胶囊。 */
 
 :root{
   /* 颜色 — swiss-light */
   --paper:#f5f3ee; --paper2:#ebe8e0; --card:#fdfcf9; --ink:#17150f; --ink70:rgba(23,21,15,.7);
-  --ink50:rgba(23,21,15,.5); --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14);
-  --accent:#e2231a; --accent-focus:#e2231a; --cta:#e2231a; --danger:#e2231a;
-  --ochre:#b38100; --gray:#5b6470;
-  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff;
+  --ink50:rgba(23,21,15,.62); --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14);
+  --accent:#e2231a; --accent-focus:#17150f; --cta:#e2231a; --danger:#a3120b;
+  --ochre:#8a6300; --gray:#5b6470; --ok:#0d7a68;
+  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff; --cta-hover:color-mix(in srgb,var(--cta) 88%,#000);
   --pearl:#fdfcf9; --ring-soft:#ebe8e0; --pearl-ink:#17150f;
   --shadow-pop:6px 6px 0 rgba(23,21,15,.15);
   --hair:1px solid var(--ink15);
-  --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#b38100; --c-rhetoric:#7444c1;
+  --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#93690a; --c-rhetoric:#7444c1;
   --c-structure:#0d7a68; --c-clarity:#c2447e; --c-speech:#b9622a;
   /* 自定义类别调色板（category-colors）：色相取内置色环空档 */
   --p1:#1e8e4a; --p2:#69890b; --p3:#0c8da6; --p4:#0e8fd0; --p5:#4f46c9;
@@ -27,19 +29,26 @@
 
   --sans:"Helvetica Neue",Helvetica,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
   --mono:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+  /* 固定深墨：不随明暗皮肤翻转，供「任意动态底色上的钳制文字」（lib/contrast.onColorText）使用 */
+  --ink-fixed:#14110c;
 
   /* 动效曲线（跨主题共享）：自然减速，禁 bounce/elastic */
   --ease-out-quint:cubic-bezier(.22,1,.36,1);
   --ease-out-expo:cubic-bezier(.16,1,.3,1);
+
+  /* 堆叠语义阶（DESIGN-GUIDE §6-7）：悬浮条 < 弹层/菜单 < 引导层；
+    跨主题共享，新增层级必须入阶并回填文档，禁字面值（折叠展开钮已改为文档流图标栏，不占层级；
+    toast 系统已移除，--z-toasts 随之出册） */
+  --z-float:40; --z-pop:60; --z-onboard:100;
 }
 
 /* ---------- swiss-dark：纸/墨反转（深灰阶非纯黑），类别色整体提亮 ---------- */
 [data-theme="swiss-dark"]{
   --paper:#16161a; --paper2:#222228; --card:#1d1d23; --ink:#ece9e2; --ink70:rgba(236,233,226,.7);
   --ink50:rgba(236,233,226,.52); --ink35:rgba(236,233,226,.36); --ink15:rgba(236,233,226,.16);
-  --accent:#ff5548; --accent-focus:#ff5548; --cta:#ff5548; --danger:#ff5548;
-  --ochre:#d9a441; --gray:#98a2ae;
-  --on-accent:#fff; --on-danger:#1c0604; --on-cta:#fff;
+  --accent:#ff5548; --accent-focus:#ece9e2; --cta:#ff5548; --danger:#ff7a70;
+  --ochre:#d9a441; --gray:#98a2ae; --ok:#52b3a4;
+  --on-accent:#fff; --on-danger:#1c0604; --on-cta:#fff; --cta-hover:color-mix(in srgb,var(--cta) 88%,#000);
   --pearl:#1d1d23; --ring-soft:#222228; --pearl-ink:#ece9e2;
   --shadow-pop:6px 6px 0 rgba(0,0,0,.45);
   --c-logic:#ff5548; --c-thesis:#6e94ff; --c-argument:#d9a441; --c-rhetoric:#b18af0;
@@ -48,13 +57,13 @@
   --p6:#a45cf1; --p7:#e56bd4; --p8:#9db2cd; --p9:#e04a74; --p10:#c1734a;
 }
 
-/* ---------- apple-light（DESIGN.md）：parchment 画布 + Action Blue 单强调 + 珍珠胶囊 ---------- */
+/* ---------- apple-light（design/Apple-design-analysis.md）：parchment 画布 + Action Blue 单强调 + 珍珠胶囊 ---------- */
 [data-theme="apple-light"]{
   --paper:#f5f5f7; --paper2:#f0f0f0; --card:#ffffff; --ink:#1d1d1f; --ink70:rgba(29,29,31,.78);
-  --ink50:rgba(29,29,31,.56); --ink35:rgba(29,29,31,.36); --ink15:#e0e0e0;
+  --ink50:rgba(29,29,31,.7); --ink35:rgba(29,29,31,.36); --ink15:#e0e0e0;
   --accent:#0066cc; --accent-focus:#0071e3; --cta:#0066cc; --danger:#d70015;
-  --ochre:#ad5700; --gray:#6e6e73;
-  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff;
+  --ochre:#ad5700; --gray:#6e6e73; --ok:#0e6f4e;
+  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff; --cta-hover:color-mix(in srgb,var(--cta) 88%,#000);
   --pearl:#fafafc; --ring-soft:#f0f0f0; --pearl-ink:#333;
   --shadow-pop:0 0 0 0 transparent; /* chrome 零阴影；浮层 .pop 走毛玻璃 */
   --hair:1px solid var(--ink15);
@@ -63,18 +72,18 @@
   --p1:#1e8e4a; --p2:#69890b; --p3:#0c8da6; --p4:#0e8fd0; --p5:#4f46c9;
   --p6:#5b21b6; --p7:#a6128f; --p8:#55677d; --p9:#8e1440; --p10:#a0522d;
 
-  /* 形状 — apple（DESIGN.md 圆角语法：卡 18 / 工具 8 / 胶囊全圆） */
+  /* 形状 — apple（Apple-design-analysis 圆角语法：卡 18 / 工具 8 / 胶囊全圆） */
   --radius:18px; --radius-sm:8px; --radius-round:9999px; --radius-cta:9999px;
   --sans:system-ui,-apple-system,"SF Pro Text","Helvetica Neue","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
 }
 
-/* ---------- apple-dark（DESIGN.md）：近黑 tile 微阶分层 + Sky Blue 暗面强调 ---------- */
+/* ---------- apple-dark（design/Apple-design-analysis.md）：近黑 tile 微阶分层 + Sky Blue 暗面强调 ---------- */
 [data-theme="apple-dark"]{
   --paper:#272729; --paper2:#252527; --card:#2a2a2c; --ink:#ffffff; --ink70:rgba(255,255,255,.78);
   --ink50:rgba(255,255,255,.58); --ink35:rgba(255,255,255,.38); --ink15:rgba(255,255,255,.16);
   --accent:#2997ff; --accent-focus:#2997ff; --cta:#0066cc; --danger:#ff453a;
-  --ochre:#ffa41b; --gray:#98a2ae;
-  --on-accent:#fff; --on-danger:#24120a; --on-cta:#fff;
+  --ochre:#ffa41b; --gray:#98a2ae; --ok:#63d2a4;
+  --on-accent:#fff; --on-danger:#24120a; --on-cta:#fff; --cta-hover:color-mix(in srgb,var(--cta) 88%,#000);
   --pearl:#2a2a2c; --ring-soft:#3a3a3c; --pearl-ink:#f5f5f7;
   --shadow-pop:0 0 0 0 transparent; /* chrome 零阴影；浮层 .pop 走毛玻璃 */
   --hair:1px solid var(--ink15);

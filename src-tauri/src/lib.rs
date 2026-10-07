@@ -1,6 +1,5 @@
 use keyring::Entry;
 use serde::Serialize;
-#[cfg(debug_assertions)]
 use tauri::Manager;
 
 /// 应用在系统钥匙串中的统一服务名。条目 user = 模型配置 id。
@@ -87,12 +86,57 @@ fn dev_spike_write(app: tauri::AppHandle, name: String, content: String) -> Resu
     std::fs::write(path, content).map_err(|e| e.to_string())
 }
 
+/// 应用数据目录下的旧版 JSON 存储文件（plugin-store 时代遗留；spec: app-persistence 存储迁移）。
+const LEGACY_STORE_FILE: &str = "argus-store.json";
+
+/// 读取旧版 JSON 存储原文（首迁数据源）。文件不存在返回 None；绝不写入。
+fn legacy_read_from(dir: &std::path::Path) -> Result<Option<String>, String> {
+    let path = dir.join(LEGACY_STORE_FILE);
+    if !path.exists() {
+        return Ok(None);
+    }
+    std::fs::read_to_string(&path).map(Some).map_err(|e| e.to_string())
+}
+
+/// 首迁成功后做副本式备份（copy，不移动原文件）：原文件保留原地，保证「失败可重试」与
+/// 「回滚后旧版仍可读」两个承诺（spec: 存储迁移与版本兼容）。返回备份文件名。
+fn legacy_backup_in(dir: &std::path::Path) -> Result<Option<String>, String> {
+    let src = dir.join(LEGACY_STORE_FILE);
+    if !src.exists() {
+        return Ok(None);
+    }
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let name = format!("argus-store.backup-{secs}.json");
+    std::fs::copy(&src, dir.join(&name)).map_err(|e| e.to_string())?;
+    Ok(Some(name))
+}
+
+#[tauri::command]
+fn legacy_store_read(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    legacy_read_from(&dir)
+}
+
+#[tauri::command]
+fn legacy_store_backup(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    legacy_backup_in(&dir)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_store::Builder::new().build());
+        .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        // 应用内自动更新（spec: app-updates）：更新请求/验签在 Rust 侧，不受 WebView CSP 约束
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init()); // 安装完成后 relaunch 用
 
     #[cfg(debug_assertions)]
     {
@@ -101,6 +145,8 @@ pub fn run() {
             keyring_get,
             keyring_delete,
             keyring_probe,
+            legacy_store_read,
+            legacy_store_backup,
             dev_spike_read,
             dev_spike_write
         ]);
@@ -111,7 +157,9 @@ pub fn run() {
             keyring_set,
             keyring_get,
             keyring_delete,
-            keyring_probe
+            keyring_probe,
+            legacy_store_read,
+            legacy_store_backup
         ]);
     }
 
@@ -135,5 +183,31 @@ mod tests {
         keyring_delete(user.clone()).expect("delete_credential");
         let gone = keyring_get(user).expect("get_password after delete");
         assert!(gone.is_none());
+    }
+
+    /// 首迁文件语义（tasks 1.6/1.8）：读不写、备份为 copy 原文件保留原地、无文件时两者皆 None。
+    #[test]
+    fn legacy_store_read_and_copy_backup() {
+        let dir = std::env::temp_dir().join(format!("argus-legacy-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        // 空目录：读取与备份都返回 None
+        assert_eq!(legacy_read_from(&dir).unwrap(), None);
+        assert_eq!(legacy_backup_in(&dir).unwrap(), None);
+
+        // 放入旧文件 → 读取原文
+        std::fs::write(dir.join(LEGACY_STORE_FILE), "{\"settings\":{}}").expect("write legacy");
+        assert_eq!(legacy_read_from(&dir).unwrap().as_deref(), Some("{\"settings\":{}}"));
+
+        // 备份 = copy：原文件仍在原地（回滚后旧版可读），备份副本存在
+        let name = legacy_backup_in(&dir).unwrap().expect("backup name");
+        assert!(name.starts_with("argus-store.backup-"));
+        assert!(dir.join(LEGACY_STORE_FILE).exists(), "original must stay in place");
+        assert!(dir.join(&name).exists(), "backup copy must exist");
+        assert_eq!(
+            std::fs::read_to_string(dir.join(&name)).unwrap(),
+            "{\"settings\":{}}",
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

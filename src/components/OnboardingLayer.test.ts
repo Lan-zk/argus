@@ -114,7 +114,7 @@ describe("02A 预设 configure：Key 失焦自动检索 + 保存完成", () => {
     expect(settings.models[0].provider).toBe("deepseek");
     expect(settings.models[0].isDefault).toBe(true); // 首条自动默认
     expect(onb.active).toBe(false);
-    expect(ui.page).toBe("new"); // 完成落点
+    expect(ui.reviewView).toBe("new"); // 完成落点
     w.unmount();
   });
 

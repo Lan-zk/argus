@@ -2,8 +2,10 @@
 // Settings 页（spec: settings 全部场景 + model-config-ux）。
 // Models 新增两步流程：pick（预设卡片/自定义连接）→ configure（预设只填 Key + 模型下拉；自定义全字段）。
 // Key 失焦自动检索 + 手动刷新；同 Provider 复用钥匙串 Key；测试连接复用现有错误分类。
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useSettingsStore } from "../stores/settings";
+import { useUiStore } from "../stores/ui";
+import { useUpdateStore } from "../stores/update";
 import { PROVIDERS, PROVIDER_ZH, isFourFamily } from "../domain/types";
 import type { DiscoveredModel, ModelConfig } from "../domain/types";
 import { GROUP_ZH, MODEL_PRESETS, displayProviderName, presetById } from "../domain/presets";
@@ -21,6 +23,30 @@ import CategoryColorPicker from "../components/CategoryColorPicker.vue";
 
 const settings = useSettingsStore();
 const onboarding = useOnboardingStore();
+const ui = useUiStore();
+const update = useUpdateStore();
+
+// 「关于 · 检查更新」（spec: app-updates 版本检查时机：手动入口；失败显示可读错误）
+onMounted(() => void update.refreshVersion());
+/** 区块内一行式状态文案：null = 无需展示。 */
+const updateStatusLine = computed<{ text: string; tone: "ok" | "bad" | "busy" } | null>(() => {
+  switch (update.status) {
+    case "up-to-date":
+      return { text: "✓ 已是最新版本", tone: "ok" };
+    case "check-failed":
+      return { text: update.error, tone: "bad" };
+    case "available":
+      return { text: `发现新版本 v${update.pending?.version ?? ""}`, tone: "ok" };
+    case "downloading":
+      return { text: update.progress !== null ? `下载中 · ${update.progress}%` : "下载中…", tone: "busy" };
+    case "installing":
+      return { text: "安装中，完成后将自动重启", tone: "busy" };
+    case "install-failed":
+      return { text: update.error, tone: "bad" };
+    default:
+      return null;
+  }
+});
 
 /** 颜色选择弹层当前打开的类别 id（spec: settings 类别颜色配置）。 */
 const colorPickerFor = ref<string | null>(null);
@@ -315,6 +341,45 @@ function toggleCatEditor(id: string) {
   openCat.value = openCat.value === id ? null : id;
 }
 
+/** 分节视图（spec: settings 类别分组管理）：通用虚拟置顶 + 自定义组按序；空组也保留分节（组管理入口需可见）。 */
+const sortedCats = computed(() => [...settings.categories].sort((a, b) => a.order - b.order));
+const catGlobalIdx = computed(() => new Map(sortedCats.value.map((c, i) => [c.id, i] as const)));
+const groupedSections = computed(() =>
+  settings.allGroups.map((group) => ({
+    group,
+    cats: sortedCats.value.filter((c) => (c.groupId ?? null) === group.id),
+  })),
+);
+
+// ---- 分组管理（新建 / 重命名 / 排序 / 删除确认）----
+const addingGroup = ref(false);
+const newGroupName = ref("");
+const renamingGroup = ref<string | null>(null);
+const renameInput = ref("");
+const confirmingGroup = ref<string | null>(null);
+
+/** 自定义组在 groups 内的序号（上移/下移边界；通用恒为首位不可移）。 */
+const customGroupIdx = computed(() => new Map(settings.groups.map((g, i) => [g.id, i] as const)));
+
+async function submitNewGroup() {
+  const name = newGroupName.value.trim();
+  addingGroup.value = false;
+  if (!name) return;
+  await settings.addGroup(name);
+  newGroupName.value = "";
+}
+
+async function submitRename(id: string) {
+  const name = renameInput.value.trim();
+  renamingGroup.value = null;
+  if (name) await settings.renameGroup(id, name);
+}
+
+async function confirmDeleteGroup(id: string) {
+  confirmingGroup.value = null;
+  await settings.deleteGroup(id);
+}
+
 // ---- 钥匙串诊断 ----
 const keyringStatus = ref("");
 void keyring.probe("diagnostic").then((r) => {
@@ -330,10 +395,18 @@ void presetById;
 <template>
   <section class="page on">
     <div class="set-wrap">
+      <!-- 页头：返回审阅（入口常驻左栏底部，spec: settings-in-sidebar） -->
+        <div class="set-head">
+        <button class="mini" @click="ui.goReview('workspace')">← 返回审阅</button>
+        <h1>设置</h1>
+        <span class="set-hint">设置入口常驻左栏底部</span>
+      </div>
+
+
       <!-- 3.1 Models -->
       <div class="set-sec">
         <div class="sec-head">
-          <span class="n">3.1</span><h2>Models 模型配置</h2>
+          <span class="n">1</span><h2>Models 模型配置</h2>
           <span class="hint">系统不内置 API Key · Key 存系统钥匙串，数据文件不含明文</span>
         </div>
 
@@ -365,17 +438,16 @@ void presetById;
         </div>
 
         <!-- 第一步：选服务（pick） -->
-        <div v-if="addFlow?.kind === 'pick'" class="model-row" style="border: 2px solid var(--ink)">
+        <div v-if="addFlow?.kind === 'pick'" class="model-row focus">
           <div class="pick-head">
             <span class="microlabel">选择服务</span>
-            <span class="microlabel" style="margin-left: auto; color: var(--ink35)">预设自动填充端点与协议，只需填 API Key</span>
+            <span class="flabel" style="margin-left: auto">预设自动填充端点与协议，只需填 API Key</span>
           </div>
           <div v-for="g in presetGroups" :key="g.key" class="preset-group">
             <div class="microlabel" style="margin-bottom: 8px">{{ g.label }}</div>
             <div class="preset-grid">
               <button v-for="p in g.items" :key="p.id" class="preset-card" @click="pickPreset(p)">
-                <b>{{ p.name }}</b>
-                <span v-if="p.region" class="preset-region">{{ p.region }}</span>
+                <b>{{ displayProviderName(p.id) }}</b>
                 <span class="preset-models">{{ p.recommendedModel }}</span>
               </button>
             </div>
@@ -398,15 +470,15 @@ void presetById;
         </div>
 
         <!-- 第二步 A：预设 configure（唯一必填 API Key + 模型下拉） -->
-        <div v-else-if="addFlow?.kind === 'preset'" class="model-row" style="border: 2px solid var(--ink)">
+        <div v-else-if="addFlow?.kind === 'preset'" class="model-row focus">
           <div class="mr-top" style="border-bottom: var(--hair)">
-            <b style="font-size: 14px">{{ addFlow.preset.name }}</b>
+            <b>{{ addFlow.preset.name }}</b>
             <span v-if="addFlow.preset.region" class="session-chip">{{ addFlow.preset.region }}</span>
             <span class="session-chip">{{ presetModels.length ? `端点已内置 · 目录 ${presetModels.filter(m => m.source === 'catalog').length} 个模型` : "端点已内置" }}</span>
-            <span v-if="presetKeyReused" class="microlabel" style="color: var(--ink50)">✓ 已复用已保存的 Key</span>
+            <span v-if="presetKeyReused" class="flabel">✓ 已复用已保存的 Key</span>
           </div>
           <div class="mr-grid" style="grid-template-columns: repeat(2, 1fr)">
-            <div class="fg" style="grid-column: span 2" v-if="showKeyInput">
+            <div class="fg g2" v-if="showKeyInput">
               <span class="microlabel">API Key（唯一必填）</span>
               <input
                 v-model="presetKey"
@@ -416,10 +488,10 @@ void presetById;
                 @blur="onKeyBlur"
               />
             </div>
-            <div class="fg" style="grid-column: span 2" v-else>
+            <div class="fg g2" v-else>
               <button class="mini" @click="showKeyInput = true">更换 Key</button>
             </div>
-            <div class="fg" style="grid-column: span 2">
+            <div class="fg g2">
               <span class="microlabel">
                 模型
                 <template v-if="fetching">· ◐ 检索中…</template>
@@ -470,13 +542,13 @@ void presetById;
         </div>
 
         <!-- 第二步 B：自定义连接 configure（全字段 + 检索/手动并存） -->
-        <div v-else-if="addFlow?.kind === 'custom'" class="model-row" style="border: 2px solid var(--ink)">
+        <div v-else-if="addFlow?.kind === 'custom'" class="model-row focus">
           <div class="mr-top" style="border-bottom: var(--hair)">
-            <b style="font-size: 14px">{{ addFlow.local ? "本地模型" : "自定义连接" }}</b>
+            <b>{{ addFlow.local ? "本地模型" : "自定义连接" }}</b>
             <span class="session-chip">兼容任意 OpenAI-compatible 端点</span>
           </div>
           <div class="mr-grid">
-            <div class="fg" style="grid-column: span 2">
+            <div class="fg g2">
               <span class="microlabel">显示名称（可选，用于快速区分）</span>
               <input v-model="customForm.displayName" type="text" :placeholder="customNameFallback" />
             </div>
@@ -524,18 +596,18 @@ void presetById;
         </div>
 
         <!-- 编辑：预设形态（沿用配置时的精简交互） -->
-        <div v-if="editingModel && editingIsPreset" class="model-row" style="border: 2px solid var(--ink)">
+        <div v-if="editingModel && editingIsPreset" class="model-row focus">
           <div class="mr-top" style="border-bottom: var(--hair)">
-            <b style="font-size: 14px">{{ displayProviderName(String(editingModel.provider)) }}</b>
+            <b>{{ displayProviderName(String(editingModel.provider)) }}</b>
             <span class="session-chip">端点已内置</span>
             <span class="session-chip">编辑 · 目录 {{ editModels.length }} 个模型</span>
           </div>
           <div class="mr-grid" style="grid-template-columns: repeat(2, 1fr)">
-            <div class="fg" style="grid-column: span 2">
+            <div class="fg g2">
               <span class="microlabel">显示名称（可选）</span>
               <input v-model="editingModel.displayName" type="text" placeholder="留空 = 服务名 · 模型 ID" />
             </div>
-            <div class="fg" style="grid-column: span 2">
+            <div class="fg g2">
               <span class="microlabel">模型</span>
               <select v-model="editingModel.model">
                 <option v-for="m in editModelOptions" :key="m.id" :value="m.id">
@@ -543,7 +615,7 @@ void presetById;
                 </option>
               </select>
             </div>
-            <div class="fg" style="grid-column: span 2">
+            <div class="fg g2">
               <span class="microlabel">API Key（留空 = 保持已存 Key）</span>
               <input v-model="editingModel.apiKey" type="password" placeholder="sk-…" autocomplete="off" />
             </div>
@@ -563,9 +635,9 @@ void presetById;
         </div>
 
         <!-- 编辑：自定义连接形态（全字段） -->
-        <div v-else-if="editingModel" class="model-row" style="border: 2px solid var(--ink)">
+        <div v-else-if="editingModel" class="model-row focus">
           <div class="mr-grid">
-            <div class="fg" style="grid-column: span 2">
+            <div class="fg g2">
               <span class="microlabel">显示名称（可选）</span>
               <input v-model="editingModel.displayName" type="text" placeholder="留空 = 服务名 · 模型 ID" />
             </div>
@@ -605,132 +677,252 @@ void presetById;
           </div>
         </div>
 
-        <button v-if="!addFlow" @click="startAdd">＋ 新增模型配置</button>
+        <div v-if="!addFlow" class="set-tail">
+          <button @click="startAdd">＋ 新增模型配置</button>
+          <button class="mini" data-test="rerun-onboarding" @click="onboarding.start()">↻ 重新运行引导</button>
+        </div>
         <div class="info-note">
           {{ keyringStatus || "钥匙串诊断中…" }} ·
           Key 通过系统安全存储保存；日志与错误信息不含完整 Key。预设服务只需填 API Key，模型列表自动检索；同一服务的第二个模型自动复用已存 Key。
         </div>
-        <button class="mini" style="margin-top: 10px" data-test="rerun-onboarding" @click="onboarding.start()">
-          ↻ 重新运行引导
-        </button>
       </div>
 
       <!-- 3.2 Categories -->
       <div class="set-sec">
         <div class="sec-head">
-          <span class="n">3.2</span><h2>Review Categories 审阅类别</h2>
+          <span class="n">2</span><h2>Review Categories 审阅类别</h2>
           <span class="hint">每类独立 Prompt · 修改互不影响</span>
         </div>
 
-        <div v-for="(c, i) in [...settings.categories].sort((a, b) => a.order - b.order)" :key="c.id" class="cat-set-row">
-          <div class="csr-top">
-            <button
-              type="button"
-              class="csq csq-btn"
-              :aria-label="`更改 ${c.name} 颜色`"
-              :style="{ background: c.color ?? 'var(--gray)' }"
-              @click="colorPickerFor = colorPickerFor === c.id ? null : c.id"
-            ></button>
-            <b>{{ c.name }}</b>
-            <span class="en">{{ c.en }}</span>
-            <label class="ctl"><input v-model="c.enabled" type="checkbox" @change="settings.updateCategory(c.id, { enabled: c.enabled })" />启用</label>
-            <label class="ctl"><input v-model="c.defaultSelected" type="checkbox" @change="settings.updateCategory(c.id, { defaultSelected: c.defaultSelected })" />默认选中</label>
+        <div v-for="sec in groupedSections" :key="sec.group.id ?? 'general'" class="grp-sec" :data-group-sec="sec.group.id ?? 'general'">
+          <div class="grp-head">
+            <b>{{ sec.group.name }}</b>
+            <span class="hint">{{ sec.cats.length }} 个类别</span>
+            <span v-if="sec.group.id === null" class="hint">内置分组 · 不可删除</span>
             <span class="spacer"></span>
-            <button class="mini" :disabled="i === 0" @click="settings.moveCategory(c.id, -1)">↑</button>
-            <button class="mini" :disabled="i === settings.categories.length - 1" @click="settings.moveCategory(c.id, 1)">↓</button>
-            <button class="mini" @click="settings.duplicateCategory(c.id)">复制</button>
-            <button class="mini danger" @click="settings.deleteCategory(c.id)">删除</button>
-            <button class="mini primary" @click="toggleCatEditor(c.id)">
-              {{ openCat === c.id ? "收起" : "编辑 Prompt" }}
-            </button>
+            <template v-if="sec.group.id !== null">
+              <button
+                class="mini"
+                :disabled="(customGroupIdx.get(sec.group.id) ?? 0) === 0"
+                :data-test="`group-up-${sec.group.id}`"
+                @click="settings.moveGroup(sec.group.id, -1)"
+              >↑</button>
+              <button
+                class="mini"
+                :disabled="(customGroupIdx.get(sec.group.id) ?? 0) === settings.groups.length - 1"
+                :data-test="`group-down-${sec.group.id}`"
+                @click="settings.moveGroup(sec.group.id, 1)"
+              >↓</button>
+              <button class="mini" @click="renamingGroup = sec.group.id; renameInput = sec.group.name">重命名</button>
+              <button class="mini danger" data-test="group-delete" @click="confirmingGroup = sec.group.id">删除</button>
+            </template>
           </div>
-          <CategoryColorPicker
-            v-if="colorPickerFor === c.id"
-            :model-value="c.color ?? 'var(--gray)'"
-            @select="(color) => settings.updateCategory(c.id, { color })"
-            @close="colorPickerFor = null"
-          />
-          <div v-if="openCat === c.id" class="csr-body">
-            <div class="mr-grid" style="padding: 0 0 12px">
-              <div class="fg g2">
-                <span class="microlabel">名称</span>
-                <input :value="c.name" type="text" @change="settings.updateCategory(c.id, { name: ($event.target as HTMLInputElement).value })" />
-              </div>
-              <div class="fg g4" style="grid-column: span 4">
-                <span class="microlabel">说明</span>
-                <input :value="c.description" type="text" @change="settings.updateCategory(c.id, { description: ($event.target as HTMLInputElement).value })" />
-              </div>
+          <div v-if="sec.group.id !== null && renamingGroup === sec.group.id" class="grp-inline">
+            <input
+              v-model="renameInput"
+              type="text"
+              data-test="group-rename-input"
+              @keyup.enter="submitRename(sec.group.id!)"
+            />
+            <button class="mini primary" @click="submitRename(sec.group.id!)">确定</button>
+            <button class="mini" @click="renamingGroup = null">取消</button>
+          </div>
+          <!-- 守卫 id!==null：「通用」id 为 null 会与 confirmingGroup 初始 null 相等而误渲染 -->
+          <div v-if="sec.group.id !== null && confirmingGroup === sec.group.id" class="grp-inline grp-confirm" data-test="group-delete-confirm">
+            <span>删除分组「{{ sec.group.name }}」？组内 {{ sec.cats.length }} 个类别将移回通用，类别本身不会被删除。</span>
+            <button class="mini danger" data-test="group-delete-confirm-ok" @click="confirmDeleteGroup(sec.group.id!)">确认删除</button>
+            <button class="mini" @click="confirmingGroup = null">取消</button>
+          </div>
+          <div v-for="c in sec.cats" :key="c.id" class="cat-set-row">
+            <div class="csr-top">
+              <button
+                type="button"
+                class="csq csq-btn"
+                :aria-label="`更改 ${c.name} 颜色`"
+                :style="{ background: c.color ?? 'var(--gray)' }"
+                @click="colorPickerFor = colorPickerFor === c.id ? null : c.id"
+              ></button>
+              <b>{{ c.name }}</b>
+              <span class="en">{{ c.en }}</span>
+              <label class="ctl"><input v-model="c.enabled" type="checkbox" @change="settings.updateCategory(c.id, { enabled: c.enabled })" />启用</label>
+              <label class="ctl"><input v-model="c.defaultSelected" type="checkbox" @change="settings.updateCategory(c.id, { defaultSelected: c.defaultSelected })" />默认选中</label>
+              <span class="spacer"></span>
+              <button class="mini" :disabled="catGlobalIdx.get(c.id) === 0" @click="settings.moveCategory(c.id, -1)">↑</button>
+              <button class="mini" :disabled="catGlobalIdx.get(c.id) === sortedCats.length - 1" @click="settings.moveCategory(c.id, 1)">↓</button>
+              <button class="mini" @click="settings.duplicateCategory(c.id)">复制</button>
+              <button class="mini danger" @click="settings.deleteCategory(c.id)">删除</button>
+              <button class="mini primary" @click="toggleCatEditor(c.id)">
+                {{ openCat === c.id ? "收起" : "编辑 Prompt" }}
+              </button>
             </div>
-            <span class="microlabel">Prompt（独立生效，修改后重跑该类别即可应用）</span>
-            <textarea
-              :value="c.prompt"
-              style="width: 100%"
-              spellcheck="false"
-              @change="settings.updateCategory(c.id, { prompt: ($event.target as HTMLTextAreaElement).value })"
-            ></textarea>
-            <div class="ctx-chips">
-              <span v-for="v in CONTEXT_VARS" :key="v">{{ v }}</span>
-            </div>
-            <div class="ctx-note">
-              可用上下文：document（带行号全文或降级结构表示）· blocks（文档块）· category（当前类别）·
-              output_schema（输出格式约束，含 quote/lineHint/contentHash 与归一化 hash 规则）。系统按四段结构自动组装，无需在类别
-              Prompt 中重复输出格式要求。
+            <CategoryColorPicker
+              v-if="colorPickerFor === c.id"
+              :model-value="c.color ?? 'var(--gray)'"
+              @select="(color) => settings.updateCategory(c.id, { color })"
+              @close="colorPickerFor = null"
+            />
+            <div v-if="openCat === c.id" class="csr-body">
+              <div class="mr-grid" style="padding: 0 0 12px">
+                <div class="fg">
+                  <span class="microlabel">所属分组</span>
+                  <select
+                    :value="c.groupId ?? ''"
+                    data-test="cat-group-select"
+                    @change="settings.assignCategoryGroup(c.id, ($event.target as HTMLSelectElement).value || null)"
+                  >
+                    <option value="">通用</option>
+                    <option v-for="g in settings.groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+                  </select>
+                </div>
+                <div class="fg g2">
+                  <span class="microlabel">名称</span>
+                  <input :value="c.name" type="text" @change="settings.updateCategory(c.id, { name: ($event.target as HTMLInputElement).value })" />
+                </div>
+                <div class="fg g4">
+                  <span class="microlabel">说明</span>
+                  <input :value="c.description" type="text" @change="settings.updateCategory(c.id, { description: ($event.target as HTMLInputElement).value })" />
+                </div>
+              </div>
+              <span class="microlabel">Prompt（独立生效，修改后重跑该类别即可应用）</span>
+              <textarea
+                :value="c.prompt"
+                style="width: 100%"
+                spellcheck="false"
+                @change="settings.updateCategory(c.id, { prompt: ($event.target as HTMLTextAreaElement).value })"
+              ></textarea>
+              <div class="ctx-chips">
+                <span v-for="v in CONTEXT_VARS" :key="v">{{ v }}</span>
+              </div>
+              <div class="ctx-note">
+                可用上下文：document（带行号全文或降级结构表示）· blocks（文档块）· category（当前类别）·
+                output_schema（输出格式约束，含 quote/lineHint/contentHash 与归一化 hash 规则）。系统按四段结构自动组装，无需在类别
+                Prompt 中重复输出格式要求。
+              </div>
             </div>
           </div>
         </div>
 
-        <button @click="settings.addCategory({ name: '新类别' })">＋ 新建 Category</button>
+        <div class="set-tail">
+          <button @click="settings.addCategory({ name: '新类别' })">＋ 新建 Category</button>
+          <button v-if="!addingGroup" class="mini" data-test="add-group" @click="addingGroup = true; newGroupName = ''">＋ 新建分组</button>
+          <span v-else class="grp-inline">
+            <input v-model="newGroupName" type="text" placeholder="分组名称" data-test="new-group-name" @keyup.enter="submitNewGroup" />
+            <button class="mini primary" data-test="new-group-ok" @click="submitNewGroup">创建</button>
+            <button class="mini" @click="addingGroup = false">取消</button>
+          </span>
+          <button class="mini" @click="restoreBuiltinCategories">恢复内置类别</button>
+        </div>
         <div class="info-note">
           内置 6 个默认启用类别（逻辑 / 论点 / 论证 / 修辞 / 结构 / 清晰度）与 1 个默认禁用类别（演讲表达）；删除内置类别后可用「恢复内置」找回。
+          分组仅用于组织与快捷选择，不参与审阅执行；删除分组不会删除类别。
         </div>
-        <button class="mini" style="margin-top: 10px" @click="restoreBuiltinCategories">恢复内置类别</button>
       </div>
 
       <!-- 3.3 Appearance 外观（spec: theme-system） -->
       <div class="set-sec">
         <div class="sec-head">
-          <span class="n">3.3</span><h2>Appearance 外观</h2>
+          <span class="n">3</span><h2>Appearance 外观</h2>
           <span class="hint">主题与明暗独立选择 · 立即生效</span>
         </div>
         <div class="frow">
-          <span class="microlabel">主题</span>
+          <span class="flabel">主题</span>
           <span
             v-for="t in themeOptions"
             :key="t.value"
             class="fchip"
             :class="{ on: settings.ui.theme === t.value }"
             :data-theme-option="t.value"
+            role="button"
+            :tabindex="0"
+            :aria-pressed="settings.ui.theme === t.value"
             @click="settings.setTheme(t.value)"
+            @keydown.enter.prevent="settings.setTheme(t.value)"
+            @keydown.space.prevent="settings.setTheme(t.value)"
             >{{ t.label }}</span
           >
         </div>
         <div class="frow" style="margin-top: 10px">
-          <span class="microlabel">明暗</span>
+          <span class="flabel">明暗</span>
           <span
             v-for="a in appearanceOptions"
             :key="a.value"
             class="fchip"
             :class="{ on: settings.ui.appearance === a.value }"
             :data-appearance-option="a.value"
+            role="button"
+            :tabindex="0"
+            :aria-pressed="settings.ui.appearance === a.value"
             @click="settings.setAppearance(a.value)"
+            @keydown.enter.prevent="settings.setAppearance(a.value)"
+            @keydown.space.prevent="settings.setAppearance(a.value)"
             >{{ a.label }}</span
           >
         </div>
         <div class="ctx-note">「跟随系统」随操作系统明暗自动切换 · 当前生效：{{ currentSkinLabel }}</div>
+      </div>
+
+      <!-- 4 About 关于（spec: app-updates 版本检查时机：手动入口；unsupported 仅版本号） -->
+      <div class="set-sec" data-test="about-sec">
+        <div class="sec-head">
+          <span class="n">4</span><h2>About 关于</h2>
+          <span class="hint">启动时自动检查更新 · 新版本经你确认后安装</span>
+        </div>
+        <div class="frow">
+          <span class="flabel">当前版本</span>
+          <span class="session-chip" data-test="about-version">Argus v{{ update.appVersion || "—" }}</span>
+          <template v-if="update.status !== 'unsupported'">
+            <button
+              class="mini"
+              data-test="update-check"
+              :disabled="update.status === 'checking' || update.status === 'downloading' || update.status === 'installing'"
+              @click="update.check4Update(false)"
+            >{{ update.status === "checking" ? "检查中…" : "检查更新" }}</button>
+            <span
+              v-if="updateStatusLine"
+              class="update-line"
+              :style="updateStatusLine.tone === 'bad' ? 'color: var(--danger)' : updateStatusLine.tone === 'ok' ? 'color: var(--accent)' : 'color: var(--ink70)'"
+              data-test="update-status"
+            >{{ updateStatusLine.text }}</span>
+            <button
+              v-if="update.status === 'available' || update.status === 'install-failed'"
+              class="mini primary"
+              data-test="about-update-accept"
+              @click="update.startUpdate()"
+            >{{ update.status === "install-failed" ? "重试" : "立即更新" }}</button>
+          </template>
+          <span v-else class="hint">浏览器调试模式 · 自动更新在桌面应用内可用</span>
+        </div>
       </div>
     </div>
   </section>
 </template>
 
 <style scoped>
+/* P1-2：页标题用 Display 档（25px）——swiss 21/19 只差 2px、apple 21/600 与 h2 完全同形，顶层层级消失 */
+.set-head{display:flex;align-items:center;gap:14px;margin-bottom:24px}
+.set-head h1{font-size:25px;font-weight:700}
+[data-theme^="apple"] .set-head h1{font-weight:600;letter-spacing:-.3px}
+.set-hint{font-size:11px;color:var(--ink50);margin-left:auto}
+/* 尾部动作组（layout P2-8）：主按钮 + 次按钮同组，说明文字收尾 */
+.set-tail{display:flex;gap:8px;flex-wrap:wrap}
 .pick-head{display:flex;align-items:center;padding:12px 16px}
 .preset-group{padding:10px 16px 4px}
-.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.preset-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;text-align:left;background:var(--card);
+/* P2-9：与 OnboardingLayer .ob-grid/.ob-card 统一为同一预设卡方言（160 栅格 / gap 10 / 12×14 内距 / 13.5 标题） */
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.preset-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px 14px;text-align:left;background:var(--card);
   transition:background-color .15s var(--ease-out-quint),color .15s var(--ease-out-quint)}
 .preset-card:hover{background:var(--ink);color:var(--paper)}
-.preset-card:hover .preset-models,.preset-card:hover .preset-region{color:var(--paper2)}
-.preset-card b{font-size:13px}
-.preset-region{font-size:9.5px;color:var(--ink50);letter-spacing:.06em}
-.preset-models{font-family:var(--mono);font-size:9.5px;color:var(--ink35);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preset-card:hover .preset-models{color:var(--paper2)}
+.preset-card b{font-size:13.5px}
+.preset-models{font-family:var(--mono);font-size:10px;color:var(--ink50);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 分组分节（spec: settings 类别分组管理）：组头 + 内联操作（新建/重命名/删除确认） */
+.grp-sec{margin-bottom:6px}
+.grp-head{display:flex;align-items:center;gap:10px;padding:10px 0 8px;border-bottom:var(--hair)}
+.grp-head b{font-size:12.5px}
+.grp-head .spacer{flex:1}
+.grp-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0}
+.grp-inline input{width:220px}
+.grp-confirm{background:var(--card);border:var(--hair);padding:8px 12px;font-size:12px;color:var(--ink70)}
+/* 关于 · 检查更新状态行（spec: app-updates）：ok=accent / bad=danger / busy=弱化 */
+.update-line{font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>

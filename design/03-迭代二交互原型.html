@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARGUS — 迭代二交互原型 · 03</title>
+<style>
+  :root{
+    --paper:#f5f3ee; --paper2:#ebe8e0; --card:#fdfcf9; --ink:#17150f; --ink70:rgba(23,21,15,.7);
+    --ink50:rgba(23,21,15,.5); --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14);
+    --red:#e2231a; --ochre:#c08a00; --gray:#5b6470; --green:#0d7a68;
+    --hair:1px solid var(--ink15);
+    --sans:"Helvetica Neue",Helvetica,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    --mono:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+    --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#c08a00; --c-rhetoric:#7444c1;
+    --c-structure:#0d7a68; --c-clarity:#c2447e; --c-speech:#b9622a; --c-skill:#3a6ea5;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{background:var(--paper)}
+  body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;
+    height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  ::selection{background:var(--red);color:#fff}
+  .microlabel{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink50);font-weight:600}
+  button{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.05em;background:var(--card);
+    border:1.5px solid var(--ink);color:var(--ink);padding:7px 16px;cursor:pointer;transition:background .12s,color .12s}
+  button:hover{background:var(--ink);color:var(--paper)}
+  button.primary{background:var(--ink);color:var(--paper)}
+  button.primary:hover{background:var(--red);border-color:var(--red)}
+  button.danger{border-color:var(--red);color:var(--red)}
+  button.danger:hover{background:var(--red);color:#fff}
+  button.mini{padding:3px 9px;font-size:11px;border-width:1px}
+  button:disabled{opacity:.3;cursor:not-allowed}
+  button:disabled:hover{background:var(--card);color:var(--ink)}
+  input[type=text],textarea{font-family:var(--sans);font-size:13px;border:1.5px solid var(--ink35);background:var(--card);
+    color:var(--ink);padding:7px 10px;width:100%}
+  input:focus,textarea:focus{outline:none;border-color:var(--red)}
+  input[type=checkbox]{appearance:none;width:15px;height:15px;border:1.5px solid var(--ink);background:var(--card);cursor:pointer;flex-shrink:0;position:relative}
+  input[type=checkbox]:checked{background:var(--red);border-color:var(--red)}
+  input[type=checkbox]:checked::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+
+  /* ---------- nav：仅两个顶层入口 ---------- */
+  nav{display:flex;align-items:stretch;border-bottom:6px solid var(--ink);background:var(--paper);flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:14px;padding:16px 24px;border-right:var(--hair)}
+  .brand .sq{width:24px;height:24px;background:var(--red)}
+  .brand b{font-size:16px}
+  .brand .microlabel{display:block;margin-top:1px}
+  .navtabs{display:flex;align-items:stretch;flex:1}
+  .navtab{display:flex;align-items:center;gap:8px;padding:0 30px;font-size:13.5px;font-weight:600;cursor:pointer;
+    border-right:var(--hair);color:var(--ink50);position:relative;user-select:none}
+  .navtab.on{color:var(--ink);background:var(--card)}
+  .navtab.on::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px;background:var(--red)}
+  .nav-right{display:flex;align-items:center;gap:10px;padding:0 20px}
+  .proto-tag{font-family:var(--mono);font-size:10px;color:var(--ink50);border:1px solid var(--ink15);padding:3px 8px}
+
+  /* ---------- pages ---------- */
+  .page{display:none;flex:1 1 auto;min-height:0;overflow-y:auto}
+  .page.on{display:block}
+  .ia-note{border:2px solid var(--ink);background:var(--card);padding:14px 18px;margin-bottom:22px;font-size:12px;line-height:1.8}
+  .ia-note b{font-size:12.5px}
+  .ia-note .p{color:var(--red);font-weight:700}
+  .ia-note .s{color:var(--gray);font-weight:700}
+
+  /* ---------- 面包屑（审阅区内部下钻） ---------- */
+  .crumbbar{display:flex;align-items:center;gap:10px;padding:10px 28px;border-bottom:var(--hair);background:var(--paper);flex:0 0 auto}
+  .crumbbar .cb{font-size:12.5px;font-weight:600;color:var(--ink50);cursor:pointer}
+  .crumbbar .cb:hover{color:var(--red)}
+  .crumbbar .cb.cur{color:var(--ink);cursor:default}
+  .crumbbar .sep{color:var(--ink35)}
+  .crumbbar .aux{margin-left:auto;display:flex;gap:8px}
+
+  /* ---------- 审阅区三个子视图 ---------- */
+  .rview{display:none}
+  .rview.on{display:block}
+  #rv-ws.on{display:flex;flex-direction:column;overflow:hidden}
+  .list-wrap{max-width:960px;margin:0 auto;padding:30px 32px}
+  .list-head{display:flex;align-items:baseline;gap:16px;margin-bottom:22px}
+  .list-head h2{font-size:22px;font-weight:700}
+  .list-head .count{font-family:var(--mono);font-size:11px;color:var(--ink50)}
+  .list-head button{margin-left:auto}
+  .projlist{border:var(--hair);background:var(--card)}
+  .projrow{display:flex;align-items:center;gap:18px;padding:17px 22px;border-bottom:var(--hair);cursor:pointer}
+  .projrow:last-child{border-bottom:none}
+  .projrow:hover{background:var(--paper2)}
+  .projrow .psq{width:10px;height:10px;background:var(--ink);flex-shrink:0}
+  .projrow.migrated .psq{background:var(--gray)}
+  .projrow .pname{font-size:15px;font-weight:700}
+  .projrow .pmeta{font-family:var(--mono);font-size:10.5px;color:var(--ink50);margin-top:3px}
+  .projrow .rounds-chip{font-family:var(--mono);font-size:10px;border:1px solid var(--ink35);padding:2px 8px;color:var(--ink70);flex-shrink:0}
+  .projrow .acts{display:flex;gap:6px;margin-left:auto;flex-shrink:0}
+  .migrated-note{font-size:10.5px;color:var(--ink50);margin-top:2px}
+
+  /* ----- 新一轮子视图 ----- */
+  .newround-wrap{max-width:1060px;margin:0 auto;padding:26px 32px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0}
+  @media(max-width:1000px){.newround-wrap{grid-template-columns:1fr}}
+  .nr-left{padding-right:32px;border-right:var(--hair)}
+  .nr-right{padding-left:28px}
+  .nr-project{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .nr-project b{font-size:16px}
+  .import-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .l1-panel{border:2px solid var(--ink);background:var(--card);margin-top:20px;display:none}
+  .l1-panel.show{display:block}
+  .l1-head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:var(--hair);background:var(--paper)}
+  .l1-head b{font-size:13.5px}
+  .l1-head .tag{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--green);border:1px solid var(--green);padding:2px 6px}
+  .l1-stats{display:flex;padding:16px 18px}
+  .l1-stat{flex:1;text-align:center;border-right:var(--hair);padding:4px 8px}
+  .l1-stat:last-child{border-right:none}
+  .l1-stat .num{font-family:var(--mono);font-size:26px;font-weight:700}
+  .l1-stat .lbl{font-size:11px;color:var(--ink50);margin-top:3px}
+  .l1-stat .det{font-size:10px;color:var(--ink35);margin-top:4px}
+  .n-edited .num{color:var(--green)} .n-unres .num{color:var(--red)} .n-amb .num{color:var(--ochre)}
+  .l1-items{border-top:var(--hair);max-height:150px;overflow-y:auto}
+  .l1-item{display:flex;gap:10px;padding:8px 18px;font-size:12px;border-bottom:var(--hair);align-items:baseline}
+  .l1-item:last-child{border-bottom:none}
+  .l1-item .st{font-family:var(--mono);font-size:10px;flex-shrink:0;width:58px}
+  .st.edited{color:var(--green)} .st.unres{color:var(--red)} .st.amb{color:var(--ochre)}
+  .l1-item .q{color:var(--ink70);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pipe-hint{margin-top:14px;font-size:11px;color:var(--ochre);border-left:3px solid var(--ochre);padding:6px 12px;background:rgba(192,138,0,.06)}
+  .config-box{border:var(--hair);background:var(--card)}
+  .config-box .cb-head{padding:11px 16px;border-bottom:var(--hair);font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .cb-head .lock{font-family:var(--mono);font-size:9px;color:var(--ink50);border:1px solid var(--ink35);padding:1px 6px}
+  .cfgrow{display:flex;gap:10px;padding:9px 16px;border-bottom:var(--hair);font-size:12px;align-items:center}
+  .cfgrow:last-child{border-bottom:none}
+  .cfgrow .csq{width:8px;height:8px;flex-shrink:0}
+  .cfgrow .cv{font-family:var(--mono);font-size:9.5px;color:var(--ink50);margin-left:auto}
+  .cfgrow.changed .cv{color:var(--red)}
+  .cfg-note{font-size:10.5px;color:var(--ink50);line-height:1.6;padding:10px 16px;border-top:var(--hair)}
+
+  /* ----- 工作台子视图 ----- */
+  .roundstrip{display:flex;align-items:center;gap:10px;padding:10px 28px;border-bottom:var(--hair);background:var(--paper);flex:0 0 auto;flex-wrap:wrap}
+  .rtab{font-family:var(--mono);font-size:12px;font-weight:700;border:1.5px solid var(--ink);background:var(--card);
+    padding:4px 13px;cursor:pointer}
+  .rtab.on{background:var(--ink);color:var(--paper)}
+  .round-src{font-family:var(--mono);font-size:10px;color:var(--ink50);margin-left:auto}
+  .ws-statusbar{display:flex;align-items:center;gap:22px;padding:10px 28px;border-bottom:var(--hair);background:var(--card);flex:0 0 auto;flex-wrap:wrap}
+  .ws-statusbar b{font-size:14px}
+  .stat-kv{font-family:var(--mono);font-size:10.5px;color:var(--ink50)}
+  .ws-body{flex:1 1 auto;min-height:0;display:flex}
+  .docpane{flex:0 0 46%;border-right:var(--hair);overflow-y:auto;padding:26px 30px;background:var(--card)}
+  .docblock{display:flex;gap:14px;margin-bottom:14px;font-size:13.5px;line-height:1.85}
+  .docblock .ln{font-family:var(--mono);font-size:10px;color:var(--ink35);padding-top:5px;flex-shrink:0;width:30px;text-align:right}
+  .docblock h4{font-size:16px}
+  .docblock .hl{background:rgba(226,35,26,.14);border-bottom:2px solid var(--red);cursor:pointer}
+  .docblock .hl:hover{background:rgba(226,35,26,.24)}
+  .sidepane{flex:1;display:flex;flex-direction:column;min-width:0}
+  .ptabs{display:flex;border-bottom:var(--hair);flex:0 0 auto;background:var(--paper)}
+  .ptab{padding:11px 22px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink50);border-right:var(--hair)}
+  .ptab.on{color:var(--ink);background:var(--card);box-shadow:inset 0 -3px 0 var(--red)}
+  .ptab .bdg{font-family:var(--mono);font-size:9px;margin-left:5px;color:var(--red)}
+  .panelbody{flex:1;overflow-y:auto;padding:20px 24px}
+  .cfgwarn{border:2px solid var(--ochre);background:rgba(192,138,0,.07);padding:10px 14px;font-size:12px;color:var(--ochre);margin-bottom:16px;display:none;align-items:center;gap:10px}
+  .cfgwarn.show{display:flex}
+  .cp-sec{margin-bottom:22px}
+  .cp-sec .sh{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+  .cp-sec .sh b{font-size:13.5px}
+  .cp-sec .sh .certain{font-family:var(--mono);font-size:9px;color:var(--green);border:1px solid var(--green);padding:1px 6px}
+  .cp-sec .sh .prob{font-family:var(--mono);font-size:9px;color:var(--ochre);border:1px solid var(--ochre);padding:1px 6px}
+  .cp-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--ink15);border:1px solid var(--ink15)}
+  .cp-bar{background:var(--card);padding:12px 10px;text-align:center;cursor:pointer}
+  .cp-bar:hover{background:var(--paper2)}
+  .cp-bar .n{font-family:var(--mono);font-size:21px;font-weight:700}
+  .cp-bar .t{font-size:10.5px;color:var(--ink50);margin-top:2px}
+  .cp-bar .d{font-family:var(--mono);font-size:8.5px;margin-top:3px;color:var(--ink35)}
+  .cp2-bars{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--ink15);border:1px solid var(--ink15)}
+  .fcard{border:var(--hair);background:var(--card);margin-bottom:12px}
+  .fcard .fh{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:var(--hair)}
+  .fcard .cat{font-size:10px;font-weight:700;color:#fff;padding:2px 8px}
+  .fcard .sev{font-family:var(--mono);font-size:9px;border:1px solid currentColor;padding:1px 6px}
+  .sev.high{color:var(--red)} .sev.medium{color:var(--ochre)} .sev.low{color:var(--gray)}
+  .fcard .ft{font-size:12.5px;font-weight:700;flex:1}
+  .conf{font-family:var(--mono);font-size:10px;color:var(--ink50)}
+  .confbar{height:3px;background:var(--ink15);margin:0 14px 10px}
+  .confbar i{display:block;height:100%;background:var(--ochre)}
+  .fcard .fb{padding:10px 14px;font-size:12px;line-height:1.7;color:var(--ink70)}
+  .fcard .fb .lbl{font-size:9.5px;letter-spacing:.12em;color:var(--ink35);display:block;margin-bottom:2px;margin-top:8px}
+  .fcard .quote{border-left:3px solid var(--ink35);padding:4px 10px;color:var(--ink50);font-size:11.5px;margin-top:6px}
+  .expand-btn{font-size:10.5px;padding:4px 12px;margin:0 14px 12px}
+  .side-by-side{display:none;border-top:2px solid var(--ink)}
+  .side-by-side.show{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .sbs-col{padding:12px 14px;font-size:11.5px;line-height:1.7}
+  .sbs-col:first-child{border-right:var(--hair);background:var(--paper)}
+  .sbs-col .rt{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--red);margin-bottom:8px;display:block}
+  .sbs-col b{font-size:12px;display:block;margin-bottom:6px}
+  .sbs-col .lbl{font-size:9px;letter-spacing:.12em;color:var(--ink35);display:block;margin-top:7px;margin-bottom:2px}
+  .democtl{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink50);padding:8px 28px;flex-wrap:wrap;flex:0 0 auto}
+
+  /* ---------- 设置页 ---------- */
+  .set-wrap{max-width:980px;margin:0 auto;padding:30px 32px}
+  .set-sec{margin-bottom:34px}
+  .set-sec>.sh{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .set-sec>.sh h2{font-size:18px}
+  .set-sec>.sh .hint{font-size:11px;color:var(--ink50)}
+  .catlist-box{border:var(--hair);background:var(--card)}
+  .catrow-s{border-bottom:var(--hair)}
+  .catrow-s:last-child{border-bottom:none}
+  .catrow-s .crm{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}
+  .catrow-s .crm:hover{background:var(--paper2)}
+  .catrow-s .csq{width:9px;height:9px;flex-shrink:0}
+  .catrow-s .cn{font-size:13.5px;font-weight:700}
+  .catrow-s .cdesc{font-size:11px;color:var(--ink50);margin-top:2px}
+  .catrow-s .srcchip{font-family:var(--mono);font-size:9px;border:1px solid var(--ink35);color:var(--ink50);padding:1px 7px;margin-left:auto;flex-shrink:0}
+  .catrow-s .srcchip.skill{color:#3a6ea5;border-color:#3a6ea5}
+  .catrow-s .caret{color:var(--ink35);font-size:11px;flex-shrink:0}
+  .catedit{display:none;border-top:var(--hair);background:var(--paper);padding:16px 18px}
+  .catedit.show{display:block}
+  .prompt-ed{border:var(--hair);background:var(--card)}
+  .prompt-ed textarea{min-height:100px;border:none;border-bottom:var(--hair);font-family:var(--mono);font-size:12px;line-height:1.8}
+  .pe-bar{display:flex;align-items:center;gap:10px;padding:9px 14px}
+  .pe-bar .hint{font-size:10.5px;color:var(--ink50);margin-right:auto}
+  .verlist{margin-top:14px;border:var(--hair);background:var(--card)}
+  .verrow{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:var(--hair);font-size:12px}
+  .verrow:last-child{border-bottom:none}
+  .verrow .vno{font-family:var(--mono);font-weight:700;font-size:12.5px;width:30px}
+  .verrow.current{background:rgba(226,35,26,.05)}
+  .verrow .vsrc{font-family:var(--mono);font-size:9.5px;border:1px solid var(--ink35);padding:2px 8px;color:var(--ink70)}
+  .verrow .vsrc.builtin{color:var(--ink50)} .verrow .vsrc.manual{color:var(--gray);border-color:var(--gray)} .verrow .vsrc.skill{color:#3a6ea5;border-color:#3a6ea5}
+  .verrow .vtime{font-family:var(--mono);font-size:10px;color:var(--ink50);margin-left:auto}
+  .verrow .cur-tag{font-size:9px;letter-spacing:.12em;color:var(--red);font-weight:700}
+  .ver-sub{font-size:10px;color:var(--ink35);margin-top:4px;letter-spacing:.14em}
+  .set-actions{display:flex;gap:10px;margin-top:14px}
+  .models-hint{border:var(--hair);background:var(--card);padding:14px 18px;font-size:12px;color:var(--ink50);line-height:1.8}
+  .models-hint b{color:var(--ink)}
+
+  /* ---------- skill 导入弹层（设置内对话框） ---------- */
+  .skill-rows{border:var(--hair);background:var(--card)}
+  .skrow{border-bottom:var(--hair)}
+  .skrow:last-child{border-bottom:none}
+  .skrow .main{display:flex;gap:14px;padding:14px 16px;align-items:flex-start;cursor:pointer}
+  .skrow .main:hover{background:var(--paper2)}
+  .skrow .sname{font-size:13.5px;font-weight:700}
+  .skrow .sdesc{font-size:11px;color:var(--ink50);margin-top:3px;line-height:1.6}
+  .status-chip{font-family:var(--mono);font-size:9.5px;padding:3px 9px;border:1.5px solid;flex-shrink:0;margin-left:auto}
+  .status-chip.new{border-color:var(--green);color:var(--green)}
+  .status-chip.upg{border-color:#3a6ea5;color:#3a6ea5}
+  .status-chip.rej{border-color:var(--red);color:var(--red);background:rgba(226,35,26,.05)}
+  .skrow .sub{font-size:10.5px;color:var(--ink50);margin-top:4px}
+  .skrow .sub .reason{color:var(--red)}
+  .skdetail{display:none;border-top:var(--hair);background:var(--paper);padding:12px 16px}
+  .skdetail.show{display:block}
+  .clean-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+  .clean-col{border:var(--hair);background:var(--card)}
+  .clean-col .ch{font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:6px 10px;border-bottom:var(--hair)}
+  .clean-col .cb2{padding:10px 12px;font-size:11px;line-height:1.7;color:var(--ink70);max-height:130px;overflow-y:auto;font-family:var(--mono)}
+  .clean-col.stripped .ch{color:var(--red);border-color:rgba(226,35,26,.3)}
+  .clean-col.stripped .cb2{color:var(--red);text-decoration:line-through;text-decoration-color:rgba(226,35,26,.5)}
+  .ignore-note{display:flex;gap:10px;align-items:baseline;font-size:11px;color:var(--ink50);border:var(--hair);padding:9px 14px;margin-top:12px;background:var(--paper)}
+  .ignore-note code{font-family:var(--mono);font-size:10px}
+
+  /* ---------- modal / toast ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(23,21,15,.45);display:none;align-items:center;justify-content:center;z-index:50}
+  .overlay.show{display:flex}
+  .modal{width:min(860px,92vw);max-height:88vh;background:var(--card);border:3px solid var(--ink);display:flex;flex-direction:column;box-shadow:10px 10px 0 rgba(23,21,15,.18)}
+  .modal-h{display:flex;align-items:center;gap:14px;padding:15px 22px;border-bottom:2px solid var(--ink);flex-shrink:0}
+  .modal-h b{font-size:15px}
+  .modal-h .x{margin-left:auto;background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px}
+  .modal-h .x:hover{color:var(--red);background:none}
+  .modal-b{padding:18px 22px;overflow-y:auto;flex:1}
+  .modal-f{display:flex;gap:10px;align-items:center;padding:13px 22px;border-top:var(--hair);flex-shrink:0;background:var(--paper)}
+  .srcinfo{display:flex;gap:22px;font-family:var(--mono);font-size:10.5px;color:var(--ink50);margin-bottom:12px;flex-wrap:wrap}
+  .srcinfo b{color:var(--ink)}
+  .warnbox{border:2px solid var(--ochre);background:rgba(192,138,0,.07);padding:11px 15px;font-size:12px;color:var(--ochre);line-height:1.7;margin-bottom:12px}
+  .prevtxt{min-height:260px;font-family:var(--mono);font-size:12px;line-height:1.9}
+  .lossnote{font-size:10.5px;color:var(--ink50);margin-top:10px;line-height:1.7}
+  #toasts{position:fixed;right:20px;bottom:20px;z-index:99;display:flex;flex-direction:column;gap:8px}
+  .toast{background:var(--ink);color:var(--paper);font-size:12px;padding:11px 18px;border-left:4px solid var(--red);max-width:380px;line-height:1.6;animation:tin .2s}
+  .toast.ok{border-left-color:var(--green)}
+  .toast.warn{border-left-color:var(--ochre)}
+  @keyframes tin{from{transform:translateY(8px);opacity:0}}
+  .demo-note{font-size:10.5px;color:var(--ink35);font-family:var(--mono)}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">
+    <div class="sq"></div>
+    <div><b>ARGUS</b><span class="microlabel">迭代二原型 · 03</span></div>
+  </div>
+  <div class="navtabs">
+    <div class="navtab on" data-page="review">审阅</div>
+    <div class="navtab" data-page="settings">设置</div>
+  </div>
+  <div class="nav-right"><span class="proto-tag">顶层仅两个入口 · 其余全部下钻/对话框</span></div>
+</nav>
+
+<!-- ═══════════ 页 A：审阅（主循环，内含三个下钻视图） ═══════════ -->
+<div class="page on" id="page-review" style="display:flex;flex-direction:column;overflow:hidden">
+
+  <div class="crumbbar">
+    <span class="cb cur" id="cb1" onclick="gotoView('list')">审阅</span>
+    <span class="sep" id="sep2" style="display:none">/</span>
+    <span class="cb" id="cb2" style="display:none" onclick="gotoView('ws')">季度报告 v3</span>
+    <span class="sep" id="sep3" style="display:none">/</span>
+    <span class="cb cur" id="cb3" style="display:none">第 3 轮</span>
+    <div class="aux" id="wsAux" style="display:none">
+      <button class="mini" onclick="gotoView('new')">＋ 开新一轮</button>
+    </div>
+  </div>
+
+  <!-- A1 项目列表 -->
+  <div class="rview on" id="rv-list" style="overflow-y:auto">
+    <div class="list-wrap">
+      <div class="ia-note">
+        <b>信息架构取舍</b>：<span class="p">主流程</span>＝审阅循环（<b>项目列表 → 工作台 → 开新一轮 → 回工作台</b>），全部收在「审阅」一个入口内，以下钻页面组织；<span class="s">次要功能</span>＝模型 / 类别 / 提示词版本历史 / Skill 包导入，全部归「设置」——Skill 导入是设置里的对话框，版本历史是类别编辑区里的展开项，都不占顶部导航。
+      </div>
+      <div class="list-head">
+        <h2>审阅</h2><span class="count">4 个项目</span>
+        <button class="primary" onclick="gotoView('new');toast('新建项目：输入名称 → 首轮输入流程（与「开新一轮」同一界面）','ok')">＋ 新建审阅</button>
+      </div>
+      <div class="projlist">
+        <div class="projrow" onclick="gotoView('ws')">
+          <div class="psq"></div>
+          <div>
+            <div class="pname">季度报告 v3</div>
+            <div class="pmeta">最近活动 2026-10-04 14:32 · 3 轮 · 18 个发现</div>
+          </div>
+          <span class="rounds-chip">R3 完成</span>
+          <div class="acts" onclick="event.stopPropagation()">
+            <button class="mini" onclick="toast('重命名：季度报告 v3 →（编辑）')">重命名</button>
+            <button class="mini danger" onclick="confirmDelete('季度报告 v3',3)">删除</button>
+          </div>
+        </div>
+        <div class="projrow">
+          <div class="psq"></div>
+          <div>
+            <div class="pname">晋升述职稿</div>
+            <div class="pmeta">最近活动 2026-10-02 09:15 · 1 轮 · 7 个发现</div>
+          </div>
+          <span class="rounds-chip">R1 完成</span>
+          <div class="acts">
+            <button class="mini" onclick="toast('重命名：晋升述职稿 →（编辑）')">重命名</button>
+            <button class="mini danger" onclick="confirmDelete('晋升述职稿',1)">删除</button>
+          </div>
+        </div>
+        <div class="projrow migrated">
+          <div class="psq"></div>
+          <div>
+            <div class="pname">导入的审阅</div>
+            <div class="pmeta">最近活动 2026-09-28 17:40 · 1 轮 · 9 个发现</div>
+            <div class="migrated-note">由旧版本数据自动迁移创建（升级时的最近一次审阅）</div>
+          </div>
+          <span class="rounds-chip">R1 完成</span>
+          <div class="acts">
+            <button class="mini" onclick="toast('重命名：导入的审阅 →（编辑）')">重命名</button>
+            <button class="mini danger" onclick="confirmDelete('导入的审阅',1)">删除</button>
+          </div>
+        </div>
+        <div class="projrow">
+          <div class="psq" style="background:var(--red)"></div>
+          <div>
+            <div class="pname">新书章节 · 第 4 章</div>
+            <div class="pmeta">最近活动 2026-10-04 16:05 · 2 轮 · 第 2 轮进行中</div>
+          </div>
+          <span class="rounds-chip" style="border-color:var(--red);color:var(--red)">R2 进行中</span>
+          <div class="acts">
+            <button class="mini" onclick="toast('重命名：新书章节 · 第 4 章 →（编辑）')">重命名</button>
+            <button class="mini danger" onclick="confirmDelete('新书章节 · 第 4 章',2)">删除</button>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:20px" class="demo-note">▲ 点击项目行下钻进入工作台（试试「季度报告 v3」）。「新建审阅」与工作台里的「开新一轮」共用同一输入界面（A3）。</p>
+    </div>
+  </div>
+
+  <!-- A2 工作台 -->
+  <div class="rview" id="rv-ws">
+    <div class="roundstrip">
+      <span class="microlabel">轮次</span>
+      <div class="rtab" data-round="1" onclick="switchRound(1)">1</div>
+      <div class="rtab" data-round="2" onclick="switchRound(2)">2</div>
+      <div class="rtab on" data-round="3" onclick="switchRound(3)">3</div>
+      <span class="round-src" id="roundsrc">第 3 轮 · 来自 季度报告-v3-final.docx（docx · 2026-10-04 16:40）</span>
+    </div>
+    <div class="ws-statusbar">
+      <b>季度报告 v3</b>
+      <span class="stat-kv">11,204 字</span>
+      <span class="stat-kv">4 类别</span>
+      <span class="stat-kv" id="roundstat">第 3 轮 · 完成</span>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="mini" onclick="gotoView('new')">＋ 开新一轮</button>
+        <button class="mini danger" onclick="toast('删除第 3 轮：需确认；删除后对比自动改为 R2 ↔ R1','warn')">删除本轮</button>
+      </span>
+    </div>
+    <div class="democtl">
+      <span class="microlabel">演示开关</span>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="cfgtoggle" onchange="applyCfgDemo()"> 本轮「清晰度」提示词与上轮不同（配置已变更）
+      </label>
+      <span class="demo-note">— 切换轮次号或勾选开关，观察右侧「对比」页签</span>
+    </div>
+    <div class="ws-body">
+      <div class="docpane">
+        <div class="docblock"><span class="ln">L1</span><h4>三、用户增长与留存</h4></div>
+        <div class="docblock"><span class="ln">L3</span><span>本季度用户留存率同比提升 <span class="hl" onclick="toast('定位到右侧「疑似遗留」卡片')">28 个百分点</span>，主要得益于召回策略上线与新人引导路径缩短。</span></div>
+        <div class="docblock"><span class="ln">L7</span><span>综上所述，增长动能已从渠道采买转向产品内生……</span></div>
+        <div class="docblock"><span class="ln">L11</span><span>活跃用户口径说明见附录 B（与财务口径差异已标注）。</span></div>
+        <p class="demo-note" style="margin-top:18px">▲ 文档区仅示意：高亮 ↔ 右侧卡片双向定位沿用现工作台行为。</p>
+      </div>
+      <div class="sidepane">
+        <div class="ptabs">
+          <div class="ptab">批注 <span class="bdg">7</span></div>
+          <div class="ptab">报告</div>
+          <div class="ptab on">对比 <span class="bdg">R3↔R2</span></div>
+        </div>
+        <div class="panelbody" id="comparebody">
+
+          <div class="cfgwarn" id="cfgwarn">
+            <span>⚠</span><span><b>配置已变更，对比仅供参考</b> — 本轮「清晰度」使用提示词 v3（上轮为 v1），差异可能来自配置而非文档修改。</span>
+          </div>
+
+          <div class="cp-sec">
+            <div class="sh"><b>上一轮（R2 · 9 个问题）的去向</b><span class="certain">确定性判定</span></div>
+            <div class="cp-bars">
+              <div class="cp-bar" onclick="toast('筛选：已修改 5 条（引用文本已不存在）')"><div class="n" style="color:var(--green)">5</div><div class="t">已修改</div><div class="d">quote 已不存在</div></div>
+              <div class="cp-bar" onclick="toast('筛选：未动 2 条（原文原样存在）')"><div class="n" style="color:var(--red)">2</div><div class="t">未动</div><div class="d">quote 原样存在</div></div>
+              <div class="cp-bar" onclick="toast('筛选：待确认 2 条（周边文字变动）')"><div class="n" style="color:var(--ochre)">2</div><div class="t">待确认</div><div class="d">周边变动</div></div>
+            </div>
+          </div>
+
+          <div class="cp-sec">
+            <div class="sh"><b>本轮发现（R3 · 7 个）的构成</b><span class="prob">概率性判定</span></div>
+            <div class="cp2-bars">
+              <div class="cp-bar"><div class="n" style="color:var(--ochre)">2</div><div class="t">疑似遗留</div><div class="d">附置信度 · 可两轮并排</div></div>
+              <div class="cp-bar"><div class="n">5</div><div class="t">新问题</div><div class="d">本轮新出现</div></div>
+            </div>
+          </div>
+
+          <div class="cp-sec">
+            <div class="sh"><b>疑似遗留</b><span class="demo-note">点击卡片展开两轮说法并排</span></div>
+
+            <div class="fcard">
+              <div class="fh">
+                <span class="cat" style="background:var(--c-logic)">逻辑</span><span class="sev high">严重</span>
+                <span class="ft">「活跃用户」口径前后不一致</span>
+                <span class="conf">置信度 87%</span>
+              </div>
+              <div class="confbar"><i style="width:87%"></i></div>
+              <div class="fb">
+                <span class="lbl">本轮引用</span>
+                <div class="quote">「活跃用户口径说明见附录 B（与财务口径差异已标注）。」 — L11</div>
+                <span class="lbl">本轮说法</span>
+                附录 B 仍未给出计算式，口径差异仅「已标注」未「已解释」，与第二章口径冲突仍在。
+              </div>
+              <button class="expand-btn" onclick="toggleSbs('sbs1',this)">▾ 两轮说法并排</button>
+              <div class="side-by-side" id="sbs1">
+                <div class="sbs-col">
+                  <span class="rt">ROUND 2 · 严重</span>
+                  <b>「活跃用户」口径不一致</b>
+                  <span class="lbl">引用</span>「日活口径下留存率 62%……月活口径下为 41%」— L14
+                  <span class="lbl">问题</span>第二章与第五章分别使用日活/月活口径，未说明差异。
+                  <span class="lbl">建议</span>在首次出现处统一定义并全文对齐。
+                </div>
+                <div class="sbs-col">
+                  <span class="rt">ROUND 3 · 严重（本轮）</span>
+                  <b>「活跃用户」口径前后不一致</b>
+                  <span class="lbl">引用</span>「活跃用户口径说明见附录 B（与财务口径差异已标注）。」— L11
+                  <span class="lbl">问题</span>已补充附录引用，但附录 B 仍无计算式，冲突部分缓解、未消除。
+                  <span class="lbl">建议</span>在附录 B 补口径计算式，并在第二章加交叉引用。
+                </div>
+              </div>
+            </div>
+
+            <div class="fcard">
+              <div class="fh">
+                <span class="cat" style="background:var(--c-clarity)">清晰度</span><span class="sev medium">建议修改</span>
+                <span class="ft">「综上所述」段落衔接仍生硬</span>
+                <span class="conf">置信度 64%</span>
+              </div>
+              <div class="confbar"><i style="width:64%"></i></div>
+              <div class="fb">
+                <span class="lbl">本轮说法</span>
+                结尾段与上文论述的衔接有改善（新增过渡句），但指代仍模糊——<b>可能为同一问题</b>，也可能为新表述下的新发现。
+              </div>
+              <button class="expand-btn" onclick="toggleSbs('sbs2',this)">▾ 两轮说法并排</button>
+              <div class="side-by-side" id="sbs2">
+                <div class="sbs-col">
+                  <span class="rt">ROUND 2 · 建议修改</span>
+                  <b>结尾段衔接生硬</b>
+                  <span class="lbl">引用</span>「综上所述，整体表现符合预期。」— L22
+                  <span class="lbl">建议</span>补充一句对上文的概括再收束。
+                </div>
+                <div class="sbs-col">
+                  <span class="rt">ROUND 3 · 建议修改（本轮）</span>
+                  <b>「综上所述」段落指代模糊</b>
+                  <span class="lbl">引用</span>「综上所述，增长动能已从渠道采买转向产品内生……」— L7
+                  <span class="lbl">建议</span>「产品内生」首次出现，前文无铺垫，指代需展开。
+                </div>
+              </div>
+            </div>
+
+            <p class="demo-note">▲ 措辞规则：确定性判定用「已修改 / 未动 / 待确认」；模型对比一律「疑似遗留 / 可能为同一问题」，永不断言「完全相同」。</p>
+          </div>
+        </div>
+
+        <div class="panelbody" id="emptybody" style="display:none">
+          <p style="color:var(--ink50);font-size:13px;line-height:2;padding:30px 10px;text-align:center">
+            这是项目的第一轮审阅，还没有上一轮可对比。<br>开新一轮后，这里会显示两轮之间的问题去向与遗留情况。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- A3 新一轮输入（新建项目首轮与开新一轮共用） -->
+  <div class="rview" id="rv-new" style="overflow-y:auto">
+    <div class="newround-wrap">
+      <div class="nr-left">
+        <div class="nr-project">
+          <b>季度报告 v3</b>
+          <span class="demo-note">第 2 轮完成 → 开第 3 轮（新建项目的首轮共用此界面，仅无「沿用配置」）</span>
+        </div>
+        <div class="import-row">
+          <button onclick="openImport()">⬆ 导入文件（txt / md / docx / pdf）</button>
+          <button class="mini" onclick="toast('旧版 .doc：请先在 Word 中另存为 .docx 后再导入。','warn')">模拟选择 .doc</button>
+          <button class="mini" onclick="toast('扫描件 PDF：该文件没有可提取的文字层，暂不支持。可改用文字版 PDF 或直接粘贴文本。','warn')">模拟选择扫描件 PDF</button>
+        </div>
+        <textarea class="doc-input" style="min-height:200px" placeholder="…或直接粘贴修改后的 Markdown 文本（第 2 轮为 docx 导入，建议本轮同样以导入方式输入）"></textarea>
+        <div style="display:flex;justify-content:space-between;margin-top:8px" class="demo-note"><span>0 / 30,000（粘贴路径上限；导入路径超限走警告）</span><span>支持 Markdown · 结构将被保留</span></div>
+
+        <div class="pipe-hint">⚠ 两轮输入方式不同：上一轮为 docx 导入，本轮若为粘贴，对比结果可能受格式差异影响。</div>
+
+        <div class="l1-panel" id="l1panel">
+          <div class="l1-head">
+            <b>上一轮问题 · 改没改</b>
+            <span class="tag">确定性 · 未调用模型</span>
+            <span class="demo-note" style="margin-left:auto">导入确认后即时计算</span>
+          </div>
+          <div class="l1-stats">
+            <div class="l1-stat n-edited"><div class="num">5</div><div class="lbl">已修改</div><div class="det">引用文本已不存在</div></div>
+            <div class="l1-stat n-unres"><div class="num">2</div><div class="lbl">未动</div><div class="det">原文原样存在</div></div>
+            <div class="l1-stat n-amb"><div class="num">2</div><div class="lbl">待确认</div><div class="det">周边文字变动</div></div>
+          </div>
+          <div class="l1-items">
+            <div class="l1-item"><span class="st edited">已修改</span><span class="q">「用户留存率同比提升 32%」—— 数据引用与结论不一致</span></div>
+            <div class="l1-item"><span class="st edited">已修改</span><span class="q">「竞品 A 在 2025 年 Q3 市占率为 18%」来源缺失</span></div>
+            <div class="l1-item"><span class="st unres">未动</span><span class="q">第三章与第五章对「活跃用户」定义不一致</span></div>
+            <div class="l1-item"><span class="st unres">未动</span><span class="q">「预计营收翻三倍」缺少推导过程</span></div>
+            <div class="l1-item"><span class="st amb">待确认</span><span class="q">段落「综上所述……」与其上文论述衔接生硬（周边已改动）</span></div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;display:flex;gap:10px">
+          <button class="primary" onclick="toast('开始第 3 轮审阅：使用右侧快照配置（与第 2 轮一致）','ok');gotoView('ws')">开始第 3 轮审阅</button>
+          <button onclick="gotoView('ws')">返回工作台</button>
+        </div>
+      </div>
+
+      <div class="nr-right">
+        <div class="config-box">
+          <div class="cb-head">本轮配置 <span class="lock">沿用第 2 轮快照</span></div>
+          <div class="cfgrow"><span class="csq" style="background:var(--c-logic)"></span>逻辑 <span class="cv">prompt v2 · GLM-4.7</span></div>
+          <div class="cfgrow"><span class="csq" style="background:var(--c-thesis)"></span>论点 <span class="cv">prompt v1 · GLM-4.7</span></div>
+          <div class="cfgrow"><span class="csq" style="background:var(--c-structure)"></span>结构 <span class="cv">prompt v1 · GLM-4.7</span></div>
+          <div class="cfgrow changed"><span class="csq" style="background:var(--c-clarity)"></span>清晰度 <span class="cv">最新 v3 ≠ 上轮 v1</span></div>
+          <div class="cfg-note">默认沿用上一轮的类别、提示词版本与模型，保证跨轮对比只反映文档变化。<br>改动配置（如清晰度 ↑v3）后，本轮对比将标注「仅供参考」。<br><button class="mini" style="margin-top:8px" onclick="gotoView('ws');setTimeout(()=>{document.getElementById('cfgtoggle').checked=true;applyCfgDemo()},60)">预览该效果 →</button></div>
+        </div>
+        <p style="font-size:11px;color:var(--ink50);line-height:1.7;margin-top:14px">来源将记入轮次：第 3 轮 ← 季度报告-v3-final.docx（docx · 2026-10-04 16:40）。审阅基于提取文本，非原文件。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 页 B：设置（次要功能归置地） ═══════════ -->
+<div class="page" id="page-settings">
+  <div class="set-wrap">
+    <div class="ia-note">
+      <b>设置区归类</b>：模型、类别（含提示词版本历史 <span class="s">· 展开项</span>）、Skill 包导入（<span class="s">对话框</span>）等次要功能全部在此，不进入顶部导航。
+    </div>
+
+    <div class="set-sec">
+      <div class="sh"><h2>模型配置</h2><span class="hint">沿用现有设置页，未变化（示意收起）</span></div>
+      <div class="models-hint"><b>2 个配置</b>：智谱 GLM-4.7（默认）· DeepSeek V3 —— 展开后的管理与测试连接同现状，此处从略。</div>
+    </div>
+
+    <div class="set-sec">
+      <div class="sh">
+        <h2>审阅类别</h2><span class="hint">版本历史在类别内展开 · Skill 包经对话框导入</span>
+        <button style="margin-left:auto" onclick="openSkill()">⬆ 导入 Skill 包</button>
+      </div>
+      <div class="catlist-box">
+        <div class="catrow-s">
+          <div class="crm" onclick="toggleCat('ce1')">
+            <span class="csq" style="background:var(--c-logic)"></span>
+            <div><div class="cn">逻辑</div><div class="cdesc">论证链条、推理有效性…</div></div>
+            <span class="srcchip">内置</span><span class="caret">▸</span>
+          </div>
+          <div class="catedit" id="ce1">
+            <span class="ver-sub">（内置类别同样可编辑提示词；版本历史机制一致，此处从略——展开下面的示例类别）</span>
+          </div>
+        </div>
+        <div class="catrow-s">
+          <div class="crm" onclick="toggleCat('ce2')">
+            <span class="csq" style="background:#3a6ea5"></span>
+            <div><div class="cn">学术引用核查</div><div class="cdesc">核查引用与论断的一致性、来源可查性与引用格式规范。</div></div>
+            <span class="srcchip skill">来自 skill · 已升级</span><span class="caret">▾</span>
+          </div>
+          <div class="catedit show" id="ce2">
+            <div class="prompt-ed">
+              <textarea id="promptedit">核查正文引用与结论的一致性；对每处引用检查：来源是否可查、数据是否被正确转述、页码/年份是否匹配。发现可疑引用时，按严重程度分级并给出可执行的修正建议……（skill 导入 · 清洗后）</textarea>
+              <div class="pe-bar">
+                <span class="hint">每次保存追加一个不可变版本 · 可用变量：document / blocks / category / output_schema</span>
+                <button class="primary mini" onclick="saveVersion()">保存（追加新版本）</button>
+              </div>
+            </div>
+            <div class="verlist" id="verlist">
+              <div class="verrow current">
+                <span class="vno">v2</span><span class="vsrc skill">skill_import</span>
+                <span>来自 academic-review-skills.zip（升级导入 · 已清洗）</span>
+                <span class="cur-tag">当前</span>
+                <span class="vtime">2026-10-04 16:12</span>
+              </div>
+              <div class="verrow">
+                <span class="vno">v1</span><span class="vsrc manual">manual_edit</span>
+                <span>手动编辑（你修改了核查范围）</span>
+                <button class="mini" style="margin-left:12px" onclick="rollback(1)">回退到此版本</button>
+                <span class="vtime">2026-09-30 10:08</span>
+              </div>
+            </div>
+            <p style="font-size:11px;color:var(--ink50);line-height:1.7;margin-top:12px;border-left:3px solid var(--ink);padding-left:12px">
+              回退会把所选旧版内容<b>复制为最新版本</b>（来源记为 manual_edit），历史版本本身不变。已审轮次不受任何版本变化影响——每轮创建时冻结了当时使用的提示词版本。
+              <span class="demo-note" style="display:block;margin-top:6px">▲ 试试「保存」与「回退」</span>
+            </p>
+          </div>
+        </div>
+        <div class="catrow-s">
+          <div class="crm" onclick="toggleCat('ce3')">
+            <span class="csq" style="background:var(--green)"></span>
+            <div><div class="cn">语言润色规范</div><div class="cdesc">按学术出版标准检查语体、时态、术语一致性。</div></div>
+            <span class="srcchip skill">来自 skill · 新建</span><span class="caret">▸</span>
+          </div>
+          <div class="catedit" id="ce3">
+            <span class="ver-sub">（skill 导入即类别的成果：与内置类别同级管理——启停、排序、颜色、默认选中）</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 导入预览弹层（新一轮视图内） ═══════════ -->
+<div class="overlay" id="importmodal">
+  <div class="modal">
+    <div class="modal-h"><b>导入预览 — 将进入审阅的最终文本</b><span class="microlabel">可编辑修正</span>
+      <button class="x" onclick="closeImport()">✕</button></div>
+    <div class="modal-b">
+      <div class="srcinfo">
+        <span>文件 <b>季度报告-v3-final.docx</b></span><span>格式 <b>docx</b></span>
+        <span>提取 <b>48,213 字符</b></span><span>段落 <b>214</b></span><span>导入 2026-10-04 16:40</span>
+      </div>
+      <div class="warnbox">⚠ 超过 30,000 字符上限。可继续导入，但长文将触发<b>结构化降级审阅</b>（按段落结构而非逐行全文），定位精度可能下降。不会截断内容。</div>
+      <textarea class="prevtxt" id="prevtxt">三、用户增长与留存
+
+本季度用户留存率同比提升 28 个百分点，主要得益于召回策略上线与新人引导路径缩短。
+
+[表格已转为文本] 渠道 | Q2 留存 | Q3 留存 | 变化
+自然流量 | 41% | 52% | +11pp
+付费采买 | 28% | 31% | +3pp
+
+综上所述，增长动能已从渠道采买转向产品内生（此句为提取结果，表格上方断行已手动修正）……</textarea>
+      <p class="lossnote">提取损耗说明：图片 2 张已跳过 · 脚注 3 条并入段末 · 表格转为文本行（如上）。请检查后确认 —— 你可以直接在上方修改。</p>
+    </div>
+    <div class="modal-f">
+      <span class="demo-note">取消不产生任何数据</span>
+      <span style="flex:1"></span>
+      <button onclick="closeImport()">取消</button>
+      <button class="primary" onclick="confirmImport()">确认进入第 3 轮</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Skill 导入弹层（设置·类别内对话框） ═══════════ -->
+<div class="overlay" id="skillmodal">
+  <div class="modal">
+    <div class="modal-h"><b>导入 Skill 包</b><span class="microlabel">academic-review-skills.zip</span>
+      <button class="x" onclick="closeSkill()">✕</button></div>
+    <div class="modal-b">
+      <div class="srcinfo" style="margin-bottom:8px">
+        <span>条目 <b>14</b></span><span>解压 <b>312 KB</b></span><span>方式 <b>内存解包（不写盘）</b></span><span>安全检查 <b style="color:var(--green)">通过</b></span>
+      </div>
+      <div class="skill-rows">
+        <div class="skrow">
+          <div class="main" onclick="toggleDetail('kd1')">
+            <input type="checkbox" checked onclick="event.stopPropagation()">
+            <div style="flex:1">
+              <div class="sname">学术引用核查</div>
+              <div class="sdesc">核查引用与论断的一致性、来源可查性与引用格式规范。</div>
+              <div class="sub">正文 4,210 字符 · 检出 1 段输出格式说明，已剥离</div>
+            </div>
+            <span class="status-chip upg">升级 → 现有类别</span>
+          </div>
+          <div class="skdetail" id="kd1">
+            <b style="font-size:11px">格式冲突清洗（进入提示词前确认）</b>
+            <div class="clean-grid">
+              <div class="clean-col">
+                <div class="ch">CLEANSED · 进入提示词</div>
+                <div class="cb2">核查正文引用与结论的一致性；对每处引用检查：来源是否可查、数据是否被正确转述、页码/年份是否匹配……（其余正文）</div>
+              </div>
+              <div class="clean-col stripped">
+                <div class="ch">STRIPPED · 已剥离</div>
+                <div class="cb2">输出一个 JSON 数组，每个元素包含 quote、hash、problem 字段；quote 必须逐字摘自原文……</div>
+              </div>
+            </div>
+            <p class="sub" style="margin-top:8px">升级语义：同名匹配现有类别 → 追加为新提示词版本（历史版本不覆盖，可在类别内版本历史回退）。</p>
+          </div>
+        </div>
+        <div class="skrow">
+          <div class="main" onclick="toggleDetail('kd2')">
+            <input type="checkbox" checked onclick="event.stopPropagation()">
+            <div style="flex:1">
+              <div class="sname">语言润色规范</div>
+              <div class="sdesc">按学术出版标准检查语体、时态、术语一致性。</div>
+              <div class="sub">正文 6,830 字符 · 无格式冲突</div>
+            </div>
+            <span class="status-chip new">新建类别</span>
+          </div>
+          <div class="skdetail" id="kd2">
+            <p class="sub">将创建新审阅类别：名称与说明取自 frontmatter；默认启用、不默认选中；颜色按调色板轮转分配。</p>
+          </div>
+        </div>
+        <div class="skrow">
+          <div class="main" onclick="toggleDetail('kd3')">
+            <input type="checkbox" disabled style="opacity:.3" onclick="event.stopPropagation()">
+            <div style="flex:1">
+              <div class="sname">数据引用提取</div>
+              <div class="sdesc">从全文提取所有数据引用并核对来源。</div>
+              <div class="sub"><span class="reason">拒绝导入：正文 15,432 字符，超过提示词上限 12,000。</span></div>
+            </div>
+            <span class="status-chip rej">拒绝</span>
+          </div>
+          <div class="skdetail" id="kd3">
+            <p class="sub">可拆分为多个更小的 skill 后重新打包导入（上限常量可调）。</p>
+          </div>
+        </div>
+      </div>
+      <div class="ignore-note">
+        <span>⊘</span>
+        <span>已忽略：<code>scripts/</code> 2 个文件（不读取、不执行）· <code>references/</code> 3 个文件（v1 不拼接）。包内文件不写入磁盘。</span>
+      </div>
+    </div>
+    <div class="modal-f">
+      <span class="demo-note">1 升级 · 1 新建 · 1 拒绝</span>
+      <span style="flex:1"></span>
+      <button onclick="closeSkill()">取消</button>
+      <button class="primary" onclick="doSkillImport()">导入所选 2 个 skill</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+/* ---------- 顶层两页签 ---------- */
+function gotoTab(id){
+  document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('on',t.dataset.page===id));
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+id));
+}
+document.querySelectorAll('.navtab').forEach(t=>t.onclick=()=>gotoTab(t.dataset.page));
+
+/* ---------- 审阅区内部下钻 ---------- */
+function gotoView(v){
+  document.querySelectorAll('.rview').forEach(r=>r.classList.remove('on'));
+  document.getElementById('rv-'+v).classList.add('on');
+  const ws=v==='ws', deep=ws||v==='new';
+  document.getElementById('cb1').classList.toggle('cur',!deep);
+  document.getElementById('sep2').style.display=deep?'inline':'none';
+  document.getElementById('cb2').style.display=deep?'inline':'none';
+  document.getElementById('cb2').classList.toggle('cur',v==='new');
+  document.getElementById('sep3').style.display=v==='new'?'inline':'none';
+  document.getElementById('cb3').style.display=v==='new'?'inline':'none';
+  document.getElementById('cb3').classList.toggle('cur',v==='new');
+  document.getElementById('cb3').textContent=v==='new'?'开新一轮（第 3 轮）':'';
+  document.getElementById('wsAux').style.display=ws?'flex':'none';
+}
+
+/* ---------- toast ---------- */
+function toast(msg,kind){
+  const d=document.createElement('div');d.className='toast'+(kind?' '+kind:'');d.textContent=msg;
+  document.getElementById('toasts').appendChild(d);
+  setTimeout(()=>d.remove(),4200);
+}
+function confirmDelete(name,rounds){
+  toast('删除「'+name+'」（含 '+rounds+' 轮全部数据）→ 二次确认 → 从列表移除','warn');
+}
+
+/* ---------- 导入预览 ---------- */
+function openImport(){document.getElementById('importmodal').classList.add('show')}
+function closeImport(){document.getElementById('importmodal').classList.remove('show')}
+function confirmImport(){
+  closeImport();
+  const p=document.getElementById('l1panel');
+  p.classList.remove('show');
+  setTimeout(()=>{p.classList.add('show');toast('即时检查完成（未调用模型）：上轮 9 个问题 → 5 已修改 / 2 未动 / 2 待确认','ok')},300);
+}
+
+/* ---------- 工作台轮次 ---------- */
+const roundMeta={
+  1:{src:'第 1 轮 · 粘贴输入（2026-10-01 10:20）',stat:'第 1 轮 · 完成 · 12 个发现',empty:true},
+  2:{src:'第 2 轮 · 来自 季度报告-v3-修改稿.docx（docx · 2026-10-02 15:03）',stat:'第 2 轮 · 完成 · 9 个发现',empty:false},
+  3:{src:'第 3 轮 · 来自 季度报告-v3-final.docx（docx · 2026-10-04 16:40）',stat:'第 3 轮 · 完成 · 7 个发现',empty:false}
+};
+function switchRound(n){
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.toggle('on',+t.dataset.round===n));
+  document.getElementById('roundsrc').textContent=roundMeta[n].src;
+  document.getElementById('roundstat').textContent=roundMeta[n].stat;
+  document.getElementById('comparebody').style.display=roundMeta[n].empty?'none':'block';
+  document.getElementById('emptybody').style.display=roundMeta[n].empty?'block':'none';
+}
+function applyCfgDemo(){
+  document.getElementById('cfgwarn').classList.toggle('show',document.getElementById('cfgtoggle').checked);
+}
+function toggleSbs(id,btn){
+  const el=document.getElementById(id);el.classList.toggle('show');
+  btn.textContent=el.classList.contains('show')?'▴ 收起并排':'▾ 两轮说法并排';
+}
+
+/* ---------- 设置：类别展开 / 版本历史 ---------- */
+function toggleCat(id){
+  const el=document.getElementById(id);
+  el.classList.toggle('show');
+}
+let vnext=2;
+function saveVersion(){
+  vnext++;
+  addVersionRow(vnext,'manual_edit','手动编辑（当前编辑区内容）');
+  toast('已保存：追加为不可变版本 v'+vnext+'（历史版本保留）','ok');
+}
+function rollback(v){
+  vnext++;
+  addVersionRow(vnext,'manual_edit','回退自 v'+v+'（复制其内容为最新）');
+  toast('已回退：v'+v+' 的内容复制为最新版本 v'+vnext+'；v'+v+' 本身未改动','ok');
+}
+function addVersionRow(no,src,label){
+  const list=document.getElementById('verlist');
+  list.querySelectorAll('.cur-tag,.verrow button').forEach(e=>e.remove());
+  list.querySelectorAll('.verrow').forEach(r=>r.classList.remove('current'));
+  const row=document.createElement('div');row.className='verrow current';
+  row.innerHTML='<span class="vno">v'+no+'</span><span class="vsrc '+src+'">'+src+'</span><span>'+label+
+    '</span><span class="cur-tag">当前</span><span class="vtime">刚刚</span>';
+  list.prepend(row);
+}
+
+/* ---------- Skill 导入对话框 ---------- */
+function openSkill(){document.getElementById('skillmodal').classList.add('show')}
+function closeSkill(){document.getElementById('skillmodal').classList.remove('show')}
+function toggleDetail(id){document.getElementById(id).classList.toggle('show')}
+function doSkillImport(){
+  closeSkill();
+  toast('导入完成：「学术引用核查」提示词升级至 v3（历史保留）·「语言润色规范」已创建为类别','ok');
+  const vl=document.getElementById('verlist');
+  if(vl){vnext=3;addVersionRow(3,'skill_import','来自 academic-review-skills.zip（升级导入 · 已清洗）');}
+}
+</script>
+</body>
+</html>

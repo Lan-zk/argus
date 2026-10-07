@@ -19,7 +19,7 @@ describe("onboarding store 状态机", () => {
     onb.start();
     expect(onb.active).toBe(true);
     expect(onb.returnPage).toBe("settings");
-    ui.go("new");
+    ui.goReview("new");
     onb.start(); // 已 active：不覆盖返回页
     expect(onb.returnPage).toBe("settings");
   });
@@ -33,7 +33,7 @@ describe("onboarding store 状态机", () => {
     onb.start();
     await onb.complete();
     expect(onb.active).toBe(false);
-    expect(ui.page).toBe("new");
+    expect(ui.reviewView).toBe("new");
     expect((await loadState()).settings.ui.onboarded).toBe(true);
   });
 

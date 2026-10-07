@@ -7,7 +7,20 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
   build:
+    needs: test
     permissions:
       contents: write
     strategy:
@@ -63,10 +76,16 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 更新包 minisign 签名（spec: app-updates）——私钥来自 GitHub secrets，缺失时 updater 产物构建失败（有意：不出无签名更新包）
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: 'Argus v__VERSION__'
           releaseBody: '在下方 Assets 中下载对应系统的安装包。'
+          # 草稿发布 = 更新对外开关（spec: app-updates 更新源与发布可见性）：手动 Publish 后 latest.json 才可匿名下载
           releaseDraft: true
           prerelease: false
+          # 同时产出 NSIS/MSI 时 latest.json 指向 NSIS（MSI 不在自动更新覆盖范围）
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}

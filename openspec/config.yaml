@@ -18,11 +18,11 @@ context: |
 # Per-operation guidance (optional)
 # Add advisory guidance for how apply and archive work should be conducted.
 # This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+operations:
+  apply:
+    guidance:
+      - "存储纪律（spec: app-persistence 存储迁移与版本兼容）：任何触及 SQLite 存储（schema/列/迁移）的变更，MUST 在 src/lib/repo/migrations/ 追加 user_version 迁移步骤（幂等可重放：IF NOT EXISTS / OR IGNORE / 确定性 id，user_version 最后写），并同步追加 golden fixture（src/lib/repo/migrations/fixtures/，各历史版本脱敏样本）——fixture 矩阵测试与 CI test job 会全量校验。缺任一项不得归档。"
+      - "降级保护：APP_SCHEMA_VERSION（src/lib/repo/migrations/index.ts）为应用已知上限；库版本更高时 Repo 进入只读（写抛 ReadOnlyStorageError），不要绕过。"
+  archive:
+    guidance:
+      - "Summarize the archive outcome before finishing"

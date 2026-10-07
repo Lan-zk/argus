@@ -85,7 +85,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.ccp{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:224px;padding:12px;
+.ccp{position:absolute;top:calc(100% + 6px);left:0;z-index:var(--z-pop);min-width:224px;padding:12px;
   background:var(--card);border:2px solid var(--ink);border-radius:var(--radius);
   box-shadow:var(--shadow-pop);animation:popin .16s var(--ease-out-quint);transform-origin:top left}
 .ccp-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
@@ -95,7 +95,7 @@ onBeforeUnmount(() => {
 .ccp-sw.on{border-color:var(--ink);outline:2px solid var(--accent);outline-offset:1px}
 .ccp-custom{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:var(--hair);
   font-size:11px;color:var(--ink50)}
-.ccp-custom input[type=color]{width:26px;height:26px;padding:0;border:1px solid var(--ink35);border-radius:6px;
+.ccp-custom input[type=color]{width:26px;height:26px;padding:0;border:1px solid var(--ink35);border-radius:var(--radius-sm);
   background:var(--card);cursor:pointer}
 .ccp-warn{color:var(--danger);font-size:10.5px;font-weight:600}
 

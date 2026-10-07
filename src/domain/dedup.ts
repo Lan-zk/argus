@@ -3,7 +3,7 @@
 // 跨 Category 永不合并。
 
 import type { Finding } from "./types";
-import { normText } from "./anchor";
+import { normText, primaryAnchorOf } from "./anchor";
 import { dlog } from "./log";
 
 /** 字符二元组相似度（Sørensen–Dice）。中文短句场景下简单稳健。 */
@@ -33,15 +33,17 @@ const PROBLEM_SIMILARITY_THRESHOLD = 0.72;
 
 /**
  * 同类去重：保留先出现的一条，合并后续明显重复。
- * 去重判定 = quote 归一化相同 && 标题（去重类型）归一化相同 && problem 相似度 ≥ 阈值。
+ * 去重判定 = 主锚 quote 归一化相同 && 标题（去重类型）归一化相同 && problem 相似度 ≥ 阈值；
+ * 引用锚不参与去重键（主锚相同、引用不同的两条仍是重复，spec: finding-anchor-spans）。
  */
 export function dedupFindings(findings: Finding[], catName: string): Finding[] {
   const out: Finding[] = [];
   for (const f of findings) {
+    const key = normText(primaryAnchorOf(f)?.quote ?? f.quote);
     const dup = out.find(
       (o) =>
         o.categoryId === f.categoryId &&
-        normText(o.quote) === normText(f.quote) &&
+        normText(primaryAnchorOf(o)?.quote ?? o.quote) === key &&
         normText(o.title) === normText(f.title) &&
         similarity(o.problem, f.problem) >= PROBLEM_SIMILARITY_THRESHOLD,
     );

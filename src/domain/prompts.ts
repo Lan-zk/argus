@@ -3,6 +3,7 @@
 // 每个类别使用完全独立的组装，修改一个类别的 Prompt 不影响其他类别。
 
 import type { DocumentBlock } from "./types";
+import { normalizeNewlines } from "./normalize";
 
 /** PRD §66 十条公共规则。 */
 export const SYSTEM_INSTRUCTION = `你是一名严格的中文文稿审阅专家。每次审阅只针对一个 Review Category，输出该类别下的具体问题。
@@ -29,23 +30,27 @@ Severity 语义（通用定义，各类别可在此基础上校准）：
 
 你必须以一次 submit_findings 工具调用返回全部结果（详见 Output Schema）。`;
 
-/** Output Schema 文案：字段约束 + 归一化与 hash 规则说明（PRD §33）。 */
+/** Output Schema 文案：字段约束 + 归一化与 hash 规则说明（PRD §33 + spec: finding-anchor-spans）。 */
 export const OUTPUT_SCHEMA_TEXT = `输出要求（Structured Output）：
 你必须以一次工具调用（submit_findings）返回全部结果，不得输出自由 Markdown。findings 数组可以为空（未发现问题时返回空数组）。
 
 每个 Finding 必须包含以下字段：
 - severity: "high" | "medium" | "low"。high=明显影响理解、逻辑或核心论证；medium=降低内容质量；low=不破坏主要内容，修改后可提高质量。
 - title: 问题类型的简短命名（如「推理跳跃」）。
-- quote: 逐字引用的原文片段。必须是 Document Context 中连续出现的一小段原文（一个短句或短语，建议不超过 40 字），不得改写、概括或跨段拼接。段落级问题引用该段中最能代表问题的一句，不要引用整段。
+- quote: 逐字引用的原文片段（主锚代表句）。必须是 Document Context 中连续出现的一小段原文（一个短句或短语，建议不超过 40 字），不得改写、概括或跨段拼接。
 - lineHint: quote 所在的行号（整数，依据 Document Context 的 L 行号标注）。
 - contentHash: quote 的归一化内容哈希。计算规则：先去除 quote 中全部空白字符（含空格、换行、制表符），再对得到的字符串计算 djb2 变体哈希：初始 h=5381，对每个字符执行 h = (h*33 + code) >>> 0（无符号 32 位），输出 8 位小写十六进制（不足补前导 0）。
 - problem: 问题描述（具体，不使用模糊评价）。
 - reason: 问题原因（为什么这是一个问题）。
-- suggestion: 具体修改建议（方向具体，不直接重写全文）。`;
+- suggestion: 具体修改建议（方向具体，不直接重写全文）。
+
+可选字段（仅在问题本身需要时提供；不提供时按单句批注处理）：
+- span: { fromLine, toLine }。仅当问题为连续大段的段落级/节奏型问题时提供：quote（代表句）必须落在该行范围内，且该范围覆盖问题的完整区间。不要用长引用代替行范围。
+- refs: 引用锚数组，最多 2 条，每条含 quote / lineHint / contentHash（规则与主锚 quote 完全一致）。仅当问题为关系型（如结论扩大、前后矛盾、呼应断裂、重复章节）时提供：quote 钉住问题所在的主句，refs 指向它所参照的远处原文（如论据、铺垫句）。`;
 
 /** Document Context：带行号标注的全文（L{n}| 前缀）。 */
 export function renderNumberedDocument(text: string): string {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const lines = normalizeNewlines(text).split("\n");
   return lines.map((ln, i) => `L${i + 1}|${ln}`).join("\n");
 }
 

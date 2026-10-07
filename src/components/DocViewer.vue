@@ -3,6 +3,8 @@
 // 基于块模型渲染 Markdown（标题/引用/列表/代码），行号显示，只读。
 // 高亮按区间切片渲染；重叠区间叠加多层下划线（原型 .hl.u1/.u2/.u3 方案）；
 // unanchored Finding 不产生高亮。
+// spec: finding-anchor-spans —— 三种锚形态：句级主锚（下划线叠加）、行范围主锚
+// （覆盖块整行背景 .blk.range）、引用锚（弱化下划线 .hl.ref）；点击任一锚 = 点击该 Finding。
 import { computed } from "vue";
 import type { DocumentBlock, Finding } from "../domain/types";
 import { inlineMd } from "../domain/parser";
@@ -36,10 +38,11 @@ interface RenderBlock {
   block: DocumentBlock;
   tag: string;
   cls: string;
-  segments: (Segment & { html: string; colors: string[] })[];
+  segments: (Segment & { html: string; colors: string[]; strong: number })[];
+  /** 覆盖本块的行范围主锚所属 Finding（整行背景 + 点击定位）。 */
+  rangeIds: string[];
+  rangeColors: string[];
 }
-
-const anchored = computed(() => props.findings.filter((f) => f.anchorStatus === "anchored" && f.blockId));
 
 function colorOf(categoryId: string): string {
   return props.colorMap?.[categoryId] ?? "var(--gray)";
@@ -47,9 +50,24 @@ function colorOf(categoryId: string): string {
 
 const rendered = computed<RenderBlock[]>(() =>
   props.blocks.map((b) => {
-    const mine = anchored.value
-      .filter((f) => f.blockId === b.id && f.startOffset !== undefined && f.endOffset !== undefined)
-      .map((f) => ({ id: f.id, s: f.startOffset!, e: f.endOffset!, categoryId: f.categoryId }));
+    const bEnd = b.line + (b.plainText.match(/\n/g) || []).length;
+    // 收集本块的句级锚（主锚强样式 / 引用锚弱样式）与行范围覆盖
+    const mine: { id: string; s: number; e: number; categoryId: string; weak: boolean }[] = [];
+    const rangeIds = new Set<string>();
+    const rangeColors = new Set<string>();
+    for (const f of props.findings) {
+      for (const a of f.anchors) {
+        if (a.anchorStatus !== "anchored") continue;
+        if (a.scope === "range" && a.fromLine !== undefined && a.toLine !== undefined) {
+          if (b.line <= a.toLine && bEnd >= a.fromLine) {
+            rangeIds.add(f.id);
+            rangeColors.add(colorOf(f.categoryId));
+          }
+        } else if (a.blockId === b.id && a.startOffset !== undefined && a.endOffset !== undefined) {
+          mine.push({ id: f.id, s: a.startOffset, e: a.endOffset, categoryId: f.categoryId, weak: a.role === "ref" });
+        }
+      }
+    }
     // 切点：0、len、每个区间端点
     const pts = new Set<number>([0, b.plainText.length]);
     for (const f of mine) {
@@ -64,14 +82,30 @@ const rendered = computed<RenderBlock[]>(() =>
       if (c <= a) continue;
       const hits = mine.filter((f) => f.s <= a && f.e >= c);
       const ids = hits.map((f) => f.id);
-      const colors = [...new Set(hits.map((f) => colorOf(f.categoryId)))];
-      segments.push({ start: a, end: c, ids, html: inlineMd(b.plainText.slice(a, c)), colors });
+      const colors = [...new Set(hits.filter((f) => !f.weak).map((f) => colorOf(f.categoryId)))];
+      const weakColors = [...new Set(hits.filter((f) => f.weak).map((f) => colorOf(f.categoryId)))];
+      const allColors = colors.length > 0 ? colors : weakColors;
+      segments.push({
+        start: a,
+        end: c,
+        ids,
+        html: inlineMd(b.plainText.slice(a, c)),
+        colors: allColors,
+        strong: hits.filter((f) => !f.weak).length,
+      });
     }
     const h = b.type.startsWith("heading") ? Number(b.type.slice(7)) : 0;
     const tag =
       h === 1 ? "h1" : h === 2 ? "h2" : h >= 3 ? "h3" : b.type === "quote" ? "blockquote" : b.type === "code" ? "pre" : "p";
     const headingCls = h >= 3 ? "heading3" : b.type;
-    return { block: b, tag, cls: `blk b-${headingCls}`, segments };
+    return {
+      block: b,
+      tag,
+      cls: `blk b-${headingCls}`,
+      segments,
+      rangeIds: [...rangeIds],
+      rangeColors: [...rangeColors],
+    };
   }),
 );
 
@@ -84,6 +118,12 @@ function hlStyle(seg: RenderBlock["segments"][number]): Record<string, string> {
 
 function onHlClick(e: MouseEvent, ids: string[]) {
   // 阻止冒泡：多 Finding 弹层由 Workspace 定位展示，避免被窗口级点击关闭逻辑立即收起
+  e.stopPropagation();
+  emit("highlight-click", ids, e.currentTarget as HTMLElement);
+}
+
+/** 行范围主锚：覆盖块整块即锚点，点击/悬停等同于点击该 Finding（句级 span 已 stopPropagation，不会双触发）。 */
+function onRangeClick(e: MouseEvent, ids: string[]) {
   e.stopPropagation();
   emit("highlight-click", ids, e.currentTarget as HTMLElement);
 }
@@ -105,11 +145,18 @@ function onHlLeave() {
   emit("highlight-hover", null);
 }
 function segClass(seg: RenderBlock["segments"][number]): Record<string, boolean> {
+  const strong = seg.strong > 0;
   return {
     hl: seg.ids.length > 0,
-    [`u${Math.min(3, seg.ids.length)}`]: seg.ids.length > 0,
+    [`u${Math.min(3, seg.strong)}`]: strong,
+    // 纯引用锚段：弱化下划线（.hl.ref），视觉分量低于主锚
+    ref: seg.ids.length > 0 && !strong,
     sel: !!props.selectedFindingId && seg.ids.includes(props.selectedFindingId),
   };
+}
+
+function blockIsRangeSel(rb: RenderBlock): boolean {
+  return rb.rangeIds.includes(props.selectedFindingId ?? "");
 }
 </script>
 
@@ -119,8 +166,12 @@ function segClass(seg: RenderBlock["segments"][number]): Record<string, boolean>
       :is="rb.tag"
       v-for="rb in rendered"
       :key="rb.block.id"
-      :class="rb.cls"
+      :class="[rb.cls, { range: rb.rangeIds.length > 0, 'range-sel': blockIsRangeSel(rb) }]"
       :data-block-id="rb.block.id"
+      :style="rb.rangeIds.length ? { '--r1': rb.rangeColors[0] ?? 'var(--gray)' } : undefined"
+      @click="rb.rangeIds.length && onRangeClick($event, rb.rangeIds)"
+      @mouseenter="rb.rangeIds.length && onHlEnter(rb.rangeIds)"
+      @mouseleave="rb.rangeIds.length && onHlLeave()"
     >
       <span v-if="showLines !== false" class="bid">L{{ rb.block.line }}</span
       ><template v-for="(seg, i) in rb.segments" :key="i"

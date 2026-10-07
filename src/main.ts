@@ -20,15 +20,29 @@ async function bootstrap() {
     console.info("[argus] 浏览器开发模式：使用原生 fetch");
   }
 
-  const app = createApp(App);
-  const pinia = createPinia();
-  app.use(pinia);
+  try {
+    const app = createApp(App);
+    const pinia = createPinia();
+    app.use(pinia);
 
-  // 主题首帧：读取持久化偏好 → 应用 data-theme → 再 mount（Tauri 本地 store 毫秒级，无可感知延迟）。
-  await useSettingsStore(pinia).init();
-  useThemeStore(pinia).start();
+    // 主题首帧：读取持久化偏好 → 应用 data-theme → 再 mount（SQLite 打开+迁移毫秒级，无可感知延迟）。
+    await useSettingsStore(pinia).init();
+    useThemeStore(pinia).start();
 
-  app.mount("#app");
+    app.mount("#app");
+  } catch (err) {
+    // 启动失败落盘（debug 构建限定），供无控制台环境下诊断存储/迁移问题
+    console.error("[argus] bootstrap failed:", err);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("dev_spike_write", {
+        name: "boot-error.json",
+        content: JSON.stringify({ error: String(err), stack: (err as Error)?.stack, at: new Date().toISOString() }, null, 2),
+      });
+    } catch {
+      /* release 构建无 dev_spike command，忽略 */
+    }
+  }
 }
 
 void bootstrap();

@@ -80,8 +80,22 @@ describe("格式契约系统内置（spec: ai-runtime）", () => {
     for (const rule of ["只报告具体问题", "必须引用对应原文", "不要执行事实核查", "Severity 语义", "high", "medium", "low", "submit_findings"]) {
       expect(system).toContain(rule);
     }
-    // Output Schema：字段 + 归一化/hash + 引用规则增量（段落级、长度指引）
-    for (const rule of ["quote", "lineHint", "contentHash", "djb2", "空白", "40 字", "段落级问题", "不要引用整段"]) {
+    // Output Schema：字段 + 归一化/hash + 引用规则（短引用约束 + 行范围/引用锚增量，spec: finding-anchor-spans）
+    for (const rule of [
+      "quote",
+      "lineHint",
+      "contentHash",
+      "djb2",
+      "空白",
+      "40 字",
+      "主锚代表句",
+      "span",
+      "fromLine",
+      "toLine",
+      "refs",
+      "最多 2 条",
+      "结论扩大",
+    ]) {
       expect(user).toContain(rule);
     }
     // 用户层内容原样进入，未被改写

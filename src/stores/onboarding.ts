@@ -11,7 +11,7 @@ export const useOnboardingStore = defineStore("onboarding", {
     /** 引导层是否显示（App 根级 v-if）。 */
     active: false,
     /** 进入引导前所在页（skip 的落点）。 */
-    returnPage: "new" as PageId,
+    returnPage: "review" as PageId,
   }),
 
   actions: {
@@ -29,11 +29,11 @@ export const useOnboardingStore = defineStore("onboarding", {
       if (settings.loaded && !settings.ui.onboarded && !this.active) this.start();
     },
 
-    /** 完成：置位标记 → 关层 → 落「新建审阅」。由引导组件在 addModel 成功后调用。 */
+    /** 完成：置位标记 → 关层 → 落「审阅 · 新一轮输入」（新建项目首轮）。由引导组件在 addModel 成功后调用。 */
     async complete() {
       await useSettingsStore().setOnboarded(true);
       this.active = false;
-      useUiStore().go("new");
+      useUiStore().goReview("new");
     },
 
     /** 跳过：置位标记 → 关层 → 回到进入前页面。 */

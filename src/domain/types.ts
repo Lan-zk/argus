@@ -74,6 +74,18 @@ export interface ReviewCategory {
   enabled: boolean;
   defaultSelected: boolean;
   order: number;
+  /** 所属分组 id（spec: settings 类别分组管理）：null/缺省 = 内置「通用」分组。 */
+  groupId?: string | null;
+}
+
+/**
+ * 类别分组（spec: settings 类别分组管理）。「通用」为虚拟组不落库：
+ * 表现为 groupId=null，恒在、置顶、不可删不可改名；自定义组存 category_groups 表。
+ */
+export interface CategoryGroup {
+  id: string;
+  name: string;
+  order: number;
 }
 
 /** PRD §29 */
@@ -102,6 +114,15 @@ export interface Document {
   blocks: DocumentBlock[];
   createdAt: string;
 }
+
+/**
+ * 文档来源元信息（spec: document-import 来源元数据与原件不保存）：
+ * 粘贴轮次为 { kind: "paste" }；导入轮次记录格式、原文件名与导入时间。
+ * 只存元数据，原文件 MUST NOT 落盘。
+ */
+export type ImportSource =
+  | { kind: "paste" }
+  | { kind: "txt" | "md" | "docx" | "pdf"; filename: string; importedAt: string };
 
 /** PRD §61 */
 export type SessionStatus = "idle" | "running" | "completed" | "partial_failed" | "failed";
@@ -133,7 +154,38 @@ export interface CategoryRun {
 
 export type AnchorStatus = "anchored" | "unanchored";
 
-/** PRD §32。lineHint/contentHash 来自模型；line/blockId/startOffset/endOffset 由定位算法写入。 */
+/** 锚角色（spec: finding-pipeline 三信号定位）：primary=问题所在，ref=批注指向的远处参照。 */
+export type AnchorRole = "primary" | "ref";
+
+/** 锚粒度：quote=单句（现状），range=行范围（连续大段，quote 为范围内代表句）。 */
+export type AnchorScope = "quote" | "range";
+
+/**
+ * 单个锚点（spec: finding-pipeline 三信号定位）。每个锚独立携带三信号并独立定位；
+ * quote 恒为逐字短引用——range 的行范围互验以代表句命中为准。
+ */
+export interface FindingAnchor {
+  role: AnchorRole;
+  scope: AnchorScope;
+  quote: string;
+  lineHint?: number;
+  contentHash?: string;
+  /** 以下由定位算法写入： */
+  line?: number;
+  blockId?: string;
+  startOffset?: number;
+  endOffset?: number;
+  /** scope=range 时的行范围（定位时 clamp/收敛后回写）；range 锚 blockId = 首个覆盖块。 */
+  fromLine?: number;
+  toLine?: number;
+  anchorStatus: AnchorStatus;
+}
+
+/**
+ * PRD §32。anchors 为唯一锚定真源（首元素恒为 primary，spec: finding-anchor-spans）；
+ * 顶层 quote/lineHint/contentHash/line/blockId/startOffset/endOffset/anchorStatus
+ * 是 primary 锚的只读投影（锚定完成后同步镜像，兼容既有读取方与旧版本落库列）。
+ */
 export interface Finding {
   id: string;
   categoryId: string;
@@ -150,6 +202,7 @@ export interface Finding {
   reason: string;
   suggestion: string;
   anchorStatus: AnchorStatus;
+  anchors: FindingAnchor[];
 }
 
 /** PRD §42 */
@@ -196,6 +249,8 @@ export interface UiPrefs {
   appearance: Appearance;
   /** 首次引导是否已完成（spec: onboarding 粘性标记）：完成或跳过即置位，默认 false。 */
   onboarded: boolean;
+  /** 审阅侧栏是否折叠（三栏布局，review-versioning 布局反馈），默认 false。 */
+  sidebarCollapsed?: boolean;
 }
 
 export interface AppSettings {

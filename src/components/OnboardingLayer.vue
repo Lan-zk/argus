@@ -6,7 +6,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useSettingsStore } from "../stores/settings";
 import { useOnboardingStore } from "../stores/onboarding";
-import { GROUP_ZH, MODEL_PRESETS } from "../domain/presets";
+import { GROUP_ZH, MODEL_PRESETS, displayProviderName } from "../domain/presets";
 import type { ModelPreset, PresetGroup } from "../domain/presets";
 import type { DiscoveredModel } from "../domain/types";
 import { catalogModels, customFetchInput, fetchRemoteModels, mergeModels, presetFetchInput } from "../ai/model-discovery";
@@ -219,8 +219,7 @@ watch(step, async () => {
         <div class="microlabel">{{ g.label }}</div>
         <div class="ob-grid">
           <button v-for="p in g.items" :key="p.id" class="ob-card" @click="pickPreset(p)">
-            <b>{{ p.name }}</b>
-            <span v-if="p.region" class="ob-region">{{ p.region }}</span>
+            <b>{{ displayProviderName(p.id) }}</b>
             <span class="ob-model">{{ p.recommendedModel }}</span>
           </button>
         </div>
@@ -248,7 +247,7 @@ watch(step, async () => {
         <span v-if="presetKeyReused" class="session-chip">✓ 已复用已保存的 Key</span>
       </div>
       <label class="ob-field">
-        <span class="microlabel">API Key（唯一必填）</span>
+        <span class="flabel">API Key（唯一必填）</span>
         <input
           v-model="presetKey"
           type="password"
@@ -259,11 +258,11 @@ watch(step, async () => {
         />
       </label>
       <label class="ob-field">
-        <span class="microlabel">
+        <span class="flabel">
           模型
           <template v-if="fetching">· ◐ 检索中…</template>
           <template v-else-if="fetchError">· ⚠ {{ fetchError }}</template>
-          <template v-else>· 共 {{ presetModels.length }} 个</template>
+          <template v-else>· 共 <span class="mono">{{ presetModels.length }}</span> 个</template>
         </span>
         <select v-model="presetModelId" data-test="ob-preset-model">
           <option v-for="m in presetModels" :key="m.id" :value="m.id">
@@ -288,21 +287,21 @@ watch(step, async () => {
       </div>
       <div class="ob-fields">
         <label class="ob-field">
-          <span class="microlabel">显示名称（可选）</span>
+          <span class="flabel">显示名称（可选）</span>
           <input v-model="customForm.displayName" type="text" placeholder="留空 = 自动命名" />
         </label>
         <label class="ob-field">
-          <span class="microlabel">Base URL</span>
+          <span class="flabel">Base URL</span>
           <input v-model="customForm.baseUrl" type="text" data-test="ob-custom-baseurl" :placeholder="curLocal ? 'http://localhost:11434/v1' : 'https://…/v1'" />
           <span v-if="customHttpWarn" class="microlabel" style="color: var(--danger)">{{ customHttpWarn }}</span>
         </label>
         <label class="ob-field">
-          <span class="microlabel">API Key（本地服务可留空）</span>
+          <span class="flabel">API Key（本地服务可留空）</span>
           <input v-model="customForm.apiKey" type="password" placeholder="sk-…" autocomplete="off" />
         </label>
         <label class="ob-field">
-          <span class="microlabel">
-            Model
+          <span class="flabel">
+            模型
             <template v-if="customFetching">· ◐ 检索中…</template>
             <template v-else-if="customFetchError">· ⚠ {{ customFetchError }}</template>
           </span>
@@ -322,32 +321,33 @@ watch(step, async () => {
 </template>
 
 <style scoped>
-.ob-layer{position:fixed;inset:0;z-index:100;background:var(--paper);display:flex;flex-direction:column;overflow-y:auto}
+.ob-layer{position:fixed;inset:0;z-index:var(--z-onboard);background:var(--paper);display:flex;flex-direction:column;overflow-y:auto;
+  animation:pagein .2s var(--ease-out-quint)}
 .ob-head{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:var(--hair);flex-shrink:0}
 .ob-steps{display:flex;align-items:center}
-.ob-stepno{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--ink35)}
+.ob-stepno{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--ink50)}
 .ob-stepno.on{color:var(--ink)}
 .ob-arrow{color:var(--ink35);margin:0 10px}
-.ob-body{max-width:920px;margin:0 auto;width:100%;padding:26px 28px 48px}
+.ob-body{max-width:920px;margin:0 auto;width:100%;padding:24px 28px 48px}
 .ob-narrow{max-width:560px}
-.ob-hero{text-align:center;margin:14px 0 22px}
-.ob-hero h1{font-size:26px;display:flex;align-items:baseline;justify-content:center;gap:10px}
+.ob-hero{text-align:center;margin:14px 0 24px}
+.ob-hero h1{font-size:25px;display:flex;align-items:baseline;justify-content:center;gap:10px}
 .ob-logo{width:40px;height:40px;display:block;margin:0 auto 12px;border-radius:var(--radius-sm)}
 .ob-sub{font-size:14px;color:var(--ink70);margin-top:8px}
 .ob-trust{font-size:11px;color:var(--ink50);margin-top:6px}
 .ob-group{margin-top:16px}
 .ob-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px}
-.ob-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 16px;text-align:left;background:var(--card);border-radius:var(--radius-sm)}
-.ob-card b{font-size:14px}
-.ob-region{font-size:9.5px;color:var(--ink50);letter-spacing:.06em}
-.ob-model{font-family:var(--mono);font-size:10px;color:var(--ink35);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* P2-9：与 SettingsPage .preset-card 统一为同一预设卡方言（12×14 内距 / 13.5 标题） */
+.ob-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px 14px;text-align:left;background:var(--card);border-radius:var(--radius-sm)}
+.ob-card b{font-size:13.5px}
+.ob-model{font-family:var(--mono);font-size:10px;color:var(--ink50);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ob-alt{margin-top:20px;padding-top:16px;border-top:var(--hair)}
 .ob-chead{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
 .ob-cname{font-size:16px}
 .ob-field{display:flex;flex-direction:column;gap:6px}
 .ob-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.ob-actions{display:flex;align-items:center;gap:10px;margin-top:22px;flex-wrap:wrap}
-.ob-note{font-size:10.5px;color:var(--ink50)}
+.ob-actions{display:flex;align-items:center;gap:10px;margin-top:24px;flex-wrap:wrap}
+.ob-note{font-size:11px;color:var(--ink50)}
 .ob-flex{flex:1}
 @media (max-width:640px){.ob-fields{grid-template-columns:1fr}}
 </style>

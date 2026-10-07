@@ -54,3 +54,42 @@ export function contrastRatio(fg: string, bg: string): number | null {
   const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1];
   return (hi + 0.05) / (lo + 0.05);
 }
+
+/** var(--x) 解析缓存；键含当前皮肤（主题切换即失效重解析）。仅浏览器环境填充。 */
+const varCache = new Map<string, string>();
+
+/** 把 CSS 颜色值解析为不透明 rgb；支持 hex/rgb()/rgba() 与 var(--token)（经 getComputedStyle 解析）。失败返回 null。 */
+export function resolveToRgb(value: string): [number, number, number] | null {
+  const v = value.trim();
+  const varRef = v.match(/^var\((--[\w-]+)\)$/);
+  if (varRef) {
+    if (typeof document === "undefined") return null;
+    const key = `${document.documentElement.dataset.theme ?? ""}|${varRef[1]}`;
+    let raw = varCache.get(key);
+    if (raw === undefined) {
+      raw = getComputedStyle(document.documentElement).getPropertyValue(varRef[1]).trim();
+      varCache.set(key, raw);
+    }
+    const parsed = parseColor(raw);
+    return parsed ? parsed.rgb : null;
+  }
+  const parsed = parseColor(v);
+  return parsed ? parsed.rgb : null;
+}
+
+/** 固定深墨（--ink-fixed 令牌的值），不随明暗皮肤翻转。 */
+const INK_FIXED: [number, number, number] = [20, 17, 12];
+
+/** 动态底色上的可读文字色（类别色钳制，评审遗留项）：白与固定深墨取对比更优者。
+ *  白走 --on-accent（四皮肤恒白）；深色底配浅色时用恒深墨（暗面类别色为亮调，主题浅墨反而不可读）。
+ *  无法解析时保守返回白（与钳制前现状一致）。 */
+export function onColorText(bg: string): string {
+  const rgb = resolveToRgb(bg);
+  if (!rgb) return "var(--on-accent)";
+  const l = luminance(rgb);
+  const lInk = luminance(INK_FIXED);
+  const white = 1.05 / (l + 0.05);
+  const [hi, lo] = l > lInk ? [l, lInk] : [lInk, l];
+  const ink = (hi + 0.05) / (lo + 0.05);
+  return white >= ink ? "var(--on-accent)" : "var(--ink-fixed)";
+}

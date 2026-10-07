@@ -1,6 +1,6 @@
 # src/styles/ — design token 与基础样式
 
-主题系统（spec: theme-system）的样式落点，取值迁移自 [`design/02`](../../design/README.md) 交互原型，Apple 皮肤依据根目录 [DESIGN.md](../../DESIGN.md)。
+主题系统（spec: theme-system）的样式落点，取值迁移自 [`design/02`](../../design/README.md) 交互原型，Apple 皮肤依据 [`design/Apple-design-analysis.md`](../../design/Apple-design-analysis.md)。
 
 ## 文件说明
 
@@ -11,6 +11,6 @@
 
 ## 令牌约定
 
-- 语义拆分：`--accent` 品牌强调（随主题走）、`--danger` 错误/高危（恒红系）、`--cta` 填充式主按钮。
+- 语义拆分：`--accent` 品牌强调（随主题走）、`--danger` 错误/高危（恒红系）、`--cta` 填充式主按钮（按压加深派生 `--cta-hover`）、`--accent-focus` 焦点环专用（swiss 墨色 / apple Focus Blue）。
 - 组合切换发生在 `document.documentElement` 的 `data-theme` 属性上（见 [`stores/theme.ts`](../stores/README.md) 与 [`lib/theme.ts`](../lib/README.md)）。
 - 改动颜色令牌后运行 `node scripts/contrast-check.mjs` 校验对比度（任一硬性项不达标则退出码 1）。

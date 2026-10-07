@@ -1,0 +1,136 @@
+{
+  "settings": {
+    "models": [
+      {
+        "id": "m_g28x",
+        "provider": "zhipu",
+        "model": "glm-4.7",
+        "keyringRef": "m_g28x",
+        "isDefault": true,
+        "contextWindow": 128000
+      },
+      {
+        "id": "m_k9p2",
+        "provider": "deepseek",
+        "model": "deepseek-v3.2",
+        "keyringRef": "m_k9p2",
+        "displayName": "  DeepSeek 备用  "
+      }
+    ],
+    "categories": [
+      {
+        "id": "logic",
+        "name": "逻辑",
+        "en": "Logic",
+        "description": "论证链条、推理有效性、结论与论据的支撑关系。",
+        "color": "var(--c-logic)",
+        "prompt": "你是逻辑严谨性审阅专家。逐段检查论证链条……（默认 Prompt 节选）",
+        "enabled": true,
+        "defaultSelected": true,
+        "order": 0
+      },
+      {
+        "id": "clarity",
+        "name": "清晰度",
+        "prompt": "你是表达清晰度审阅专家。检查指代不明、句式冗长……（默认 Prompt 节选）",
+        "enabled": true,
+        "defaultSelected": false,
+        "order": 5
+      }
+    ],
+    "draftText": "旧版本遗留的输入草稿",
+    "ui": {
+      "splitPercent": 55,
+      "theme": "swiss",
+      "appearance": "dark"
+    }
+  },
+  "lastReview": {
+    "session": {
+      "id": "sess_1",
+      "documentId": "doc_1",
+      "selectedCategoryIds": ["logic", "clarity"],
+      "status": "partial_failed",
+      "createdAt": "2026-09-28T17:40:00.000Z"
+    },
+    "document": {
+      "id": "doc_1",
+      "text": "# 季度小结\n\n本季度用户留存率同比提升 28 个百分点。",
+      "blocks": [
+        {
+          "id": "block_001",
+          "type": "heading1",
+          "rawText": "# 季度小结",
+          "plainText": "季度小结",
+          "order": 0,
+          "line": 1
+        },
+        {
+          "id": "block_002",
+          "type": "paragraph",
+          "rawText": "本季度用户留存率同比提升 28 个百分点。",
+          "plainText": "本季度用户留存率同比提升 28 个百分点。",
+          "order": 1,
+          "line": 3
+        }
+      ],
+      "createdAt": "2026-09-28T17:40:00.000Z"
+    },
+    "runs": [
+      {
+        "id": "run_logic",
+        "reviewSessionId": "sess_1",
+        "categoryId": "logic",
+        "status": "completed",
+        "modelConfigId": "m_g28x"
+      },
+      {
+        "id": "run_clarity",
+        "reviewSessionId": "sess_1",
+        "categoryId": "clarity",
+        "status": "failed",
+        "modelConfigId": "m_g28x",
+        "error": "网络中断"
+      }
+    ],
+    "findings": [
+      {
+        "id": "find_1",
+        "categoryId": "logic",
+        "severity": "high",
+        "title": "数据引用缺来源",
+        "quote": "留存率同比提升 28 个百分点",
+        "contentHash": "a1b2c3",
+        "lineHint": 3,
+        "line": 3,
+        "blockId": "block_002",
+        "startOffset": 9,
+        "endOffset": 21,
+        "problem": "关键数据未注明统计口径与来源。",
+        "reason": "审阅结论需可追溯，数据无来源削弱可信度。",
+        "suggestion": "补充数据来源与统计时间段。",
+        "anchorStatus": "anchored"
+      },
+      {
+        "id": "find_2",
+        "categoryId": "clarity",
+        "severity": "low",
+        "title": "标题信息量不足",
+        "quote": "季度小结",
+        "problem": "标题过于笼统。",
+        "reason": "建议体现核心结论。",
+        "suggestion": "改为「Q3 留存改善小结」。",
+        "anchorStatus": "unanchored"
+      }
+    ],
+    "report": {
+      "summary": "整体结构清晰，主要问题集中在数据引用规范。",
+      "priorityFindingIds": ["find_1"],
+      "categorySummaries": [
+        { "categoryId": "logic", "high": 1, "medium": 0, "low": 0, "summary": "1 处高优先级数据引用问题" }
+      ],
+      "failedCategoryIds": ["clarity"],
+      "generatedAt": "2026-09-28T17:42:00.000Z"
+    }
+  }
+}

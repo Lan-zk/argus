@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { generateReport } from "./report";
 import type { Document, Finding, ModelConfig, ReviewCategory, ReviewReport } from "../domain/types";
 import { parseBlocks } from "../domain/parser";
+import { withAnchors } from "../domain/anchor";
 
 const DOC: Document = {
   id: "doc1",
@@ -18,18 +19,20 @@ const CATS: ReviewCategory[] = [
 
 let n = 0;
 function mkF(over: Partial<Finding> = {}): Finding {
-  return {
+  const f: Finding = {
     id: `f${++n}`,
     categoryId: "logic",
     severity: "medium",
     title: "推理跳跃",
     quote: "q",
+    anchors: [],
     problem: "p",
     reason: "r",
     suggestion: "s",
     anchorStatus: "anchored",
     ...over,
   };
+  return f.anchors.length > 0 ? f : withAnchors(f);
 }
 
 const FINDINGS: Finding[] = [

@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T02:57:37Z",
+  "title": "Design System: Argus",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#f5f3ee",
+        "tonalRamp": [
+          "oklch(15.0% 0.007 88.6)",
+          "oklch(26.4% 0.007 88.6)",
+          "oklch(37.9% 0.007 88.6)",
+          "oklch(49.3% 0.007 88.6)",
+          "oklch(60.7% 0.007 88.6)",
+          "oklch(72.1% 0.007 88.6)",
+          "oklch(83.6% 0.007 88.6)",
+          "oklch(95.0% 0.007 88.6)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Letterpress Ink",
+        "canonical": "#17150f",
+        "tonalRamp": [
+          "oklch(15.0% 0.012 91.8)",
+          "oklch(26.4% 0.012 91.8)",
+          "oklch(37.9% 0.012 91.8)",
+          "oklch(49.3% 0.012 91.8)",
+          "oklch(60.7% 0.012 91.8)",
+          "oklch(72.1% 0.012 91.8)",
+          "oklch(83.6% 0.012 91.8)",
+          "oklch(95.0% 0.012 91.8)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Swiss Red",
+        "canonical": "#e2231a",
+        "tonalRamp": [
+          "oklch(15.0% 0.223 29.1)",
+          "oklch(26.4% 0.223 29.1)",
+          "oklch(37.9% 0.223 29.1)",
+          "oklch(49.3% 0.223 29.1)",
+          "oklch(60.7% 0.223 29.1)",
+          "oklch(72.1% 0.223 29.1)",
+          "oklch(83.6% 0.223 29.1)",
+          "oklch(95.0% 0.223 29.1)"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Danger Oxide",
+        "canonical": "#a3120b",
+        "tonalRamp": [
+          "oklch(15.0% 0.177 29.3)",
+          "oklch(26.4% 0.177 29.3)",
+          "oklch(37.9% 0.177 29.3)",
+          "oklch(49.3% 0.177 29.3)",
+          "oklch(60.7% 0.177 29.3)",
+          "oklch(72.1% 0.177 29.3)",
+          "oklch(83.6% 0.177 29.3)",
+          "oklch(95.0% 0.177 29.3)"
+        ]
+      },
+      "ok": {
+        "role": "semantic",
+        "displayName": "Verdigris",
+        "canonical": "#0d7a68",
+        "tonalRamp": [
+          "oklch(15.0% 0.093 177.2)",
+          "oklch(26.4% 0.093 177.2)",
+          "oklch(37.9% 0.093 177.2)",
+          "oklch(49.3% 0.093 177.2)",
+          "oklch(60.7% 0.093 177.2)",
+          "oklch(72.1% 0.093 177.2)",
+          "oklch(83.6% 0.093 177.2)",
+          "oklch(95.0% 0.093 177.2)"
+        ]
+      },
+      "ochre": {
+        "role": "semantic",
+        "displayName": "Ochre",
+        "canonical": "#8a6300",
+        "tonalRamp": [
+          "oklch(15.0% 0.109 81.5)",
+          "oklch(26.4% 0.109 81.5)",
+          "oklch(37.9% 0.109 81.5)",
+          "oklch(49.3% 0.109 81.5)",
+          "oklch(60.7% 0.109 81.5)",
+          "oklch(72.1% 0.109 81.5)",
+          "oklch(83.6% 0.109 81.5)",
+          "oklch(95.0% 0.109 81.5)"
+        ]
+      },
+      "gray": {
+        "role": "semantic",
+        "displayName": "Slate Gray",
+        "canonical": "#5b6470",
+        "tonalRamp": [
+          "oklch(15.0% 0.022 255.6)",
+          "oklch(26.4% 0.022 255.6)",
+          "oklch(37.9% 0.022 255.6)",
+          "oklch(49.3% 0.022 255.6)",
+          "oklch(60.7% 0.022 255.6)",
+          "oklch(72.1% 0.022 255.6)",
+          "oklch(83.6% 0.022 255.6)",
+          "oklch(95.0% 0.022 255.6)"
+        ]
+      },
+      "apple-accent": {
+        "role": "primary",
+        "displayName": "Action Blue",
+        "canonical": "#0066cc",
+        "tonalRamp": [
+          "oklch(15.0% 0.177 255.8)",
+          "oklch(26.4% 0.177 255.8)",
+          "oklch(37.9% 0.177 255.8)",
+          "oklch(49.3% 0.177 255.8)",
+          "oklch(60.7% 0.177 255.8)",
+          "oklch(72.1% 0.177 255.8)",
+          "oklch(83.6% 0.177 255.8)",
+          "oklch(95.0% 0.177 255.8)"
+        ]
+      },
+      "apple-canvas": {
+        "role": "neutral",
+        "displayName": "Parchment",
+        "canonical": "#f5f5f7",
+        "tonalRamp": [
+          "oklch(15.0% 0.003 286.4)",
+          "oklch(26.4% 0.003 286.4)",
+          "oklch(37.9% 0.003 286.4)",
+          "oklch(49.3% 0.003 286.4)",
+          "oklch(60.7% 0.003 286.4)",
+          "oklch(72.1% 0.003 286.4)",
+          "oklch(83.6% 0.003 286.4)",
+          "oklch(95.0% 0.003 286.4)"
+        ]
+      },
+      "apple-ink": {
+        "role": "neutral",
+        "displayName": "Apple Ink",
+        "canonical": "#1d1d1f",
+        "tonalRamp": [
+          "oklch(15.0% 0.004 286.1)",
+          "oklch(26.4% 0.004 286.1)",
+          "oklch(37.9% 0.004 286.1)",
+          "oklch(49.3% 0.004 286.1)",
+          "oklch(60.7% 0.004 286.1)",
+          "oklch(72.1% 0.004 286.1)",
+          "oklch(83.6% 0.004 286.1)",
+          "oklch(95.0% 0.004 286.1)"
+        ]
+      },
+      "apple-danger": {
+        "role": "semantic",
+        "displayName": "Apple Danger Red",
+        "canonical": "#d70015",
+        "tonalRamp": [
+          "oklch(15.0% 0.225 27.3)",
+          "oklch(26.4% 0.225 27.3)",
+          "oklch(37.9% 0.225 27.3)",
+          "oklch(49.3% 0.225 27.3)",
+          "oklch(60.7% 0.225 27.3)",
+          "oklch(72.1% 0.225 27.3)",
+          "oklch(83.6% 0.225 27.3)",
+          "oklch(95.0% 0.225 27.3)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "文稿 H1 与页面主标题。"
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "区块标题，带 mono 编号前缀。"
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "卡片标题与行内强调。"
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "界面默认文本（13px）。"
+      },
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "文稿栏正文（16.5px/1.95，apple 17px/1.47），栏宽锁 720px。"
+      },
+      "label": {
+        "displayName": "Microlabel",
+        "purpose": "栏目标记（10px 大写宽字距），装饰性用途，不承载实义信息。"
+      },
+      "form-label": {
+        "displayName": "Form Label",
+        "purpose": "表单与筛选字段实义标签（.flabel，11px/600/.06em，正常大小写；存量表单容器内 microlabel 由上下文规则降级为该形态）。"
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "按钮与 tab 文本。"
+      },
+      "mono-data": {
+        "displayName": "Mono Data",
+        "purpose": "块编号、计数、状态、时间戳——等宽即数据。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "pop-hard-offset",
+        "value": "6px 6px 0 rgba(23,21,15,0.15)",
+        "purpose": "瑞士皮肤唯一投影：浮层 .pop 的印刷套版错位隐喻；暗面换 rgba(0,0,0,.45)。"
+      },
+      {
+        "name": "apple-zero-chrome",
+        "value": "none",
+        "purpose": "Apple 皮肤 chrome 零阴影；浮层走毛玻璃（parchment 82% + saturate(180%) blur(20px)）。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quint",
+        "value": "cubic-bezier(.22,1,.36,1)",
+        "purpose": "默认状态过渡曲线（跨主题共享）。"
+      },
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(.16,1,.3,1)",
+        "purpose": "入场类曲线（跨主题共享）。禁 bounce/elastic。"
+      },
+      {
+        "name": "tier-feedback",
+        "value": "~100-150ms",
+        "purpose": "反馈档：hover、按压、勾选。"
+      },
+      {
+        "name": "tier-state",
+        "value": "~180-250ms",
+        "purpose": "状态与到场档：页签切换、卡片入场（错峰 min(--i,12)*35ms 封顶）、弹层、横幅；循环动画仅限运行态呼吸脉冲。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "1000px",
+        "purpose": "新建审阅页双栏折叠为单列整页滚动；工作台为桌面布局。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button (Swiss)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "瑞士皮肤主按钮：墨底纸字，hover 换 Swiss Red，按压 1px 下沉。",
+      "html": "<button class=\"ds-btn-primary\">开始审阅</button>",
+      "css": ".ds-btn-primary { background: var(--ink); color: var(--paper); border: 1.5px solid var(--ink); padding: 7px 16px; font-size: 12px; font-weight: 600; letter-spacing: .05em; cursor: pointer; border-radius: var(--radius-sm); transition: background .15s var(--ease-out-quint), color .15s var(--ease-out-quint), border-color .15s var(--ease-out-quint), transform .08s var(--ease-out-quint); } .ds-btn-primary:hover { background: var(--accent); border-color: var(--accent); color: var(--paper); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent-focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Primary Button (Apple)",
+      "kind": "button",
+      "refersTo": "button-apple-primary",
+      "description": "Apple 皮肤主按钮：Action Blue 全胶囊，按压 scale(.95)。",
+      "html": "<button class=\"ds-btn-apple-primary\">开始审阅</button>",
+      "css": ".ds-btn-apple-primary { background: var(--cta); color: var(--on-cta); border: none; border-radius: var(--radius-cta); padding: 11px 22px; font-size: 17px; letter-spacing: -.374px; cursor: pointer; transition: background .15s var(--ease-out-quint), transform .15s var(--ease-out-quint); } .ds-btn-apple-primary:hover { background: var(--cta-hover); } .ds-btn-apple-primary:active { transform: scale(.95); } .ds-btn-apple-primary:focus-visible { outline: 2px solid var(--accent-focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Default Button (Swiss)",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "默认按钮：卡底墨边，hover 墨纸反转。",
+      "html": "<button class=\"ds-btn\">重跑该镜头</button>",
+      "css": ".ds-btn { background: var(--card); color: var(--ink); border: 1.5px solid var(--ink); padding: 7px 16px; font-size: 12px; font-weight: 600; letter-spacing: .05em; cursor: pointer; border-radius: var(--radius-sm); transition: background .15s var(--ease-out-quint), color .15s var(--ease-out-quint); } .ds-btn:hover { background: var(--ink); color: var(--paper); } .ds-btn:active { transform: translateY(1px); } .ds-btn:focus-visible { outline: 2px solid var(--accent-focus); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "文本输入：卡底细边，聚焦换 accent 边 + 焦点环。",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"模型名，如 gpt-4o\" />",
+      "css": ".ds-input { font-family: inherit; font-size: 13px; border: 1.5px solid var(--ink35); background: var(--card); color: var(--ink); padding: 7px 10px; width: 100%; border-radius: var(--radius-sm); transition: border-color .15s var(--ease-out-quint), box-shadow .15s var(--ease-out-quint); } .ds-input::placeholder { color: var(--ink50); } .ds-input:focus { outline: none; border-color: var(--accent); } .ds-input:focus-visible { box-shadow: 0 0 0 2px var(--accent-focus); }"
+    },
+    {
+      "name": "Finding Card",
+      "kind": "card",
+      "refersTo": "finding-card",
+      "description": "审阅意见卡：1px 发丝边，hover 加深，选中 accent outline（无布局跳动）。",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-cat\">逻辑</span><span class=\"ds-sev\">HIGH</span></div><h4>论据与结论之间存在跳跃</h4><p>第二段的因果断言缺少支撑，建议补充数据或削弱结论强度。</p></div>",
+      "css": ".ds-card { border: 1px solid var(--ink15); background: var(--card); padding: 13px 15px; cursor: pointer; border-radius: var(--radius); transition: border-color .15s var(--ease-out-quint); } .ds-card:hover { border-color: var(--ink); } .ds-card h4 { font-size: 14px; font-weight: 700; margin: 8px 0; } .ds-card p { font-size: 12.5px; line-height: 1.65; color: var(--ink70); } .ds-card-head { display: flex; gap: 8px; align-items: center; } .ds-cat { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; } .ds-sev { font-size: 10px; font-weight: 700; padding: 2px 8px; letter-spacing: .08em; background: var(--danger); color: var(--on-danger); border-radius: var(--radius-round); }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "filter-chip",
+      "description": "筛选片：细边胶囊（apple 全圆），选中墨底纸字 / apple CTA 填充。",
+      "html": "<span class=\"ds-chip on\">逻辑 <span class=\"ds-cnt\">12</span></span> <span class=\"ds-chip\">修辞 <span class=\"ds-cnt\">3</span></span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 10px; border: 1px solid var(--ink35); color: var(--ink70); cursor: pointer; user-select: none; border-radius: var(--radius-round); transition: background .15s var(--ease-out-quint), color .15s var(--ease-out-quint), border-color .15s var(--ease-out-quint); } .ds-chip:hover { border-color: var(--ink); } .ds-chip.on { background: var(--ink); color: var(--paper); border-color: var(--ink); } .ds-cnt { font-family: var(--mono); font-size: 9px; opacity: .7; }"
+    },
+    {
+      "name": "Microlabel",
+      "kind": "custom",
+      "refersTo": "label",
+      "description": "栏目标记：10px 大写宽字距——装饰性编号/栏目小注，不承载实义信息。",
+      "html": "<span class=\"ds-microlabel\">Review Category</span>",
+      "css": ".ds-microlabel { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink50); font-weight: 600; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "排字工的工作台（The Typesetter's Workbench）",
+    "overview": "Argus 是一个文档审阅工具，设计语言取瑞士国际主义的编辑部气质：网格、墨线、单色加一点红。信息密度是特性而非缺陷——这是 product register 的界面，工具应消失于任务，稿件永远是画面主角。Apple 皮肤是同一座工作台的「家用 Hi-Fi」形态：同一信息结构、布局与交互，换成 parchment 画布、珍珠胶囊、发丝线与系统蓝。主题换的是腔调，不是内容。架构上是双轴主题系统（theme × appearance → data-theme 四组合），颜色令牌按组合全量定值，形状令牌只随主题轴。",
+    "keyCharacteristics": [
+      "编辑部式密度：双栏工作台、每镜头一格的 runstrip、mono 数据编号",
+      "每主题一个品牌强调色，红色恒为 danger 语义",
+      "瑞士皮肤：直角、墨线、hover 墨纸反转、唯一硬偏移投影",
+      "Apple 皮肤：零 chrome 阴影（浮层唯一例外=macOS 系统菜单影）、发丝线、macOS 磨砂浮层与菜单 accent 选中、侧栏 accent 淡填充选中",
+      "动效共享 ease-out 曲线与三档时长，reduced-motion 全局兜底"
+    ],
+    "rules": [
+      {
+        "name": "The Token Rule",
+        "body": "组件层只写 var(--token)；颜色字面量只允许出现在 src/styles/tokens.css。",
+        "section": "colors"
+      },
+      {
+        "name": "The Paired Skins Rule",
+        "body": "任何颜色改动必须四组合同审并通过 contrast-check（正文 ≥4.5:1，图形 ≥3:1）。",
+        "section": "colors"
+      },
+      {
+        "name": "The Red Means Stop Rule",
+        "body": "红色只承载错误语义（--danger）；swiss 下 accent 与 danger 色值相近是双义陷阱，不得混用。",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Is Data Rule",
+        "body": "等宽字体只用于可数的数据（编号/计数/状态/哈希）。",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "平面是默认；投影是主题语言（swiss 一处硬偏移 / apple 零投影），不是状态工具。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do 组件层只写 var(--token)——颜色字面量只允许出现在 src/styles/tokens.css。",
+      "Do 新组件从既有方言找语法：容器抄 finding-card，操作抄 button 体系，标签抄 microlabel，数据抄 mono 用法。",
+      "Do 用透明度阶梯（ink70/50/35/15）表达文本层级，用线宽表达结构重量（swiss），用发丝线做弱分隔（apple）。",
+      "Do 交互件齐备 default / hover / focus-visible / active / disabled，键盘可达、状态变更 aria-live 播报。",
+      "Do 中文为主：界面文案、状态、徽标一律中文，禁双语混排。",
+      "Do 改颜色后立即跑 node scripts/contrast-check.mjs，四组合全绿再提 PR。"
+    ],
+    "donts": [
+      "Don't 出现聊天机器人感（PRODUCT.md 反参照）：气泡对话流、emoji 装饰、拟人化助手人设。",
+      "Don't 出现企业后台 CRUD 感（PRODUCT.md 反参照）：表单堆叠、管理列表、权限树。",
+      "Don't side-stripe（>1px 的彩色侧条纹）。",
+      "Don't 渐变文字、装饰性玻璃拟态（毛玻璃只属于 apple 浮层）、嵌套卡片、每节挂 eyebrow/编号标记。",
+      "Don't 混用 --accent 与 --danger。",
+      "Don't 实义文本小于 10px；microlabel 是栏目标记不是正文。",
+      "Don't animate 布局属性；一切动效走 transform/opacity + 颜色过渡，配 reduced-motion 兜底。",
+      "Don't 发明中间圆角值——apple 语法只有 8 / 18 / 全胶囊三档，swiss 只有 0。"
+    ]
+  }
+}

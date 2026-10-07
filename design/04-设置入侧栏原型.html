@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="swiss-light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ARGUS 原型 · 设置入侧栏（丢弃用）</title>
+<!--
+  原型（prototype skill / UI 分支）：设置入口从右上角移入第一栏（侧栏）底部后的形态确认。
+  问题：「设置在侧栏底部之后，打开方式应该是什么？」
+  三个结构不同的变体，浮动条或 ←/→ 键切换，?variant=A/B/C 可分享：
+    A 设置行 · 主区页面 —— 侧栏底部一行式「设置」，点击后主区整体切换为设置页
+    B 账户行 · 菜单 → 主区页面 —— 底部是模型状态行，点击弹菜单（最接近 Codex 截图的底部账户区）
+    C 设置行 · 滑出抽屉 —— 点击后 480px 抽屉从左滑出，主区上下文保留，ESC 关闭
+  共同结构（Codex 式，三变体一致）：无全局顶栏；侧栏=chrome（品牌 + 新建审阅 + 分组项目列表 + 底部固定区）；
+  主区 = 视图头（项目名/轮次/操作）+ 状态条 + 镜头条 + 双栏工作台。
+  令牌与组件语法逐字取自 src/styles/tokens.css 与 base.css（含 Apple 覆盖层子集）；主题/明暗 chips 真实可切。
+  这是丢弃用代码：确认后胜出变体进正式实现，本文件不参与构建。
+  裁决（2026-10-05）：B 账户行 + A 设置页 胜出，已落正式实现（openspec/changes/settings-in-sidebar/）；
+  本文件保留为决策记录（prototype skill：原型是一手来源，留在 design/ 不入构建）。
+-->
+<style>
+/* ============ tokens（src/styles/tokens.css 全量拷贝） ============ */
+:root{
+  --paper:#f5f3ee; --paper2:#ebe8e0; --card:#fdfcf9; --ink:#17150f; --ink70:rgba(23,21,15,.7);
+  --ink50:rgba(23,21,15,.62); --ink35:rgba(23,21,15,.35); --ink15:rgba(23,21,15,.14);
+  --accent:#e2231a; --accent-focus:#e2231a; --cta:#e2231a; --danger:#a3120b;
+  --ochre:#8a6300; --gray:#5b6470; --ok:#0d7a68;
+  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff;
+  --pearl:#fdfcf9; --ring-soft:#ebe8e0; --pearl-ink:#17150f;
+  --shadow-pop:6px 6px 0 rgba(23,21,15,.15);
+  --hair:1px solid var(--ink15);
+  --c-logic:#e2231a; --c-thesis:#2451d8; --c-argument:#b38100; --c-rhetoric:#7444c1;
+  --c-structure:#0d7a68; --c-clarity:#c2447e; --c-speech:#b9622a;
+  --radius:0; --radius-sm:0; --radius-round:0; --radius-cta:0;
+  --sans:"Helvetica Neue",Helvetica,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+  --ease-out-quint:cubic-bezier(.22,1,.36,1); --ease-out-expo:cubic-bezier(.16,1,.3,1);
+}
+[data-theme="swiss-dark"]{
+  --paper:#16161a; --paper2:#222228; --card:#1d1d23; --ink:#ece9e2; --ink70:rgba(236,233,226,.7);
+  --ink50:rgba(236,233,226,.52); --ink35:rgba(236,233,226,.36); --ink15:rgba(236,233,226,.16);
+  --accent:#ff5548; --accent-focus:#ff5548; --cta:#ff5548; --danger:#ff7a70;
+  --ochre:#d9a441; --gray:#98a2ae; --ok:#52b3a4;
+  --on-accent:#fff; --on-danger:#1c0604; --on-cta:#fff;
+  --pearl:#1d1d23; --ring-soft:#222228; --pearl-ink:#ece9e2;
+  --shadow-pop:6px 6px 0 rgba(0,0,0,.45);
+  --c-logic:#ff5548; --c-thesis:#6e94ff; --c-argument:#d9a441; --c-rhetoric:#b18af0;
+  --c-structure:#4fc1ab; --c-clarity:#f07cae; --c-speech:#e89a62;
+}
+[data-theme="apple-light"]{
+  --paper:#f5f5f7; --paper2:#f0f0f0; --card:#ffffff; --ink:#1d1d1f; --ink70:rgba(29,29,31,.78);
+  --ink50:rgba(29,29,31,.7); --ink35:rgba(29,29,31,.36); --ink15:#e0e0e0;
+  --accent:#0066cc; --accent-focus:#0071e3; --cta:#0066cc; --danger:#d70015;
+  --ochre:#ad5700; --gray:#6e6e73; --ok:#0e6f4e;
+  --on-accent:#fff; --on-danger:#fff; --on-cta:#fff;
+  --pearl:#fafafc; --ring-soft:#f0f0f0; --pearl-ink:#333;
+  --shadow-pop:0 0 0 0 transparent;
+  --hair:1px solid var(--ink15);
+  --c-logic:#d70015; --c-thesis:#0066cc; --c-argument:#9c7300; --c-rhetoric:#af52de;
+  --c-structure:#0f8f7c; --c-clarity:#e0357c; --c-speech:#c96a10;
+  --radius:18px; --radius-sm:8px; --radius-round:9999px; --radius-cta:9999px;
+  --sans:system-ui,-apple-system,"SF Pro Text","Helvetica Neue","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+[data-theme="apple-dark"]{
+  --paper:#272729; --paper2:#252527; --card:#2a2a2c; --ink:#ffffff; --ink70:rgba(255,255,255,.78);
+  --ink50:rgba(255,255,255,.58); --ink35:rgba(255,255,255,.38); --ink15:rgba(255,255,255,.16);
+  --accent:#2997ff; --accent-focus:#2997ff; --cta:#0066cc; --danger:#ff453a;
+  --ochre:#ffa41b; --gray:#98a2ae; --ok:#63d2a4;
+  --on-accent:#fff; --on-danger:#24120a; --on-cta:#fff;
+  --pearl:#2a2a2c; --ring-soft:#3a3a3c; --pearl-ink:#f5f5f7;
+  --shadow-pop:0 0 0 0 transparent;
+  --hair:1px solid var(--ink15);
+  --c-logic:#ff453a; --c-thesis:#2997ff; --c-argument:#ffd60a; --c-rhetoric:#bf5af2;
+  --c-structure:#40c8e0; --c-clarity:#ff375f; --c-speech:#ff9f0a;
+  --radius:18px; --radius-sm:8px; --radius-round:9999px; --radius-cta:9999px;
+  --sans:system-ui,-apple-system,"SF Pro Text","Helvetica Neue","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+
+/* ============ 基础（base.css 语法子集） ============ */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--sans);font-size:13px;line-height:1.65;color:var(--ink);background:var(--paper);
+  display:flex;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.05em;background:var(--card);
+  border:1.5px solid var(--ink);color:var(--ink);padding:7px 16px;cursor:pointer;border-radius:var(--radius-sm);
+  transition:background .15s var(--ease-out-quint),color .15s var(--ease-out-quint),border-color .15s var(--ease-out-quint),transform .08s var(--ease-out-quint)}
+button:active:not(:disabled){transform:translateY(1px)}
+button:focus-visible{outline:2px solid var(--accent-focus);outline-offset:2px}
+button:hover{background:var(--ink);color:var(--paper)}
+button.primary{background:var(--ink);color:var(--paper)}
+button.primary:hover{background:var(--accent);border-color:var(--accent)}
+button.mini{padding:3px 9px;font-size:11px;border-width:1px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.microlabel{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink50);font-weight:600}
+.flabel{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--ink70)}
+.mono{font-family:var(--mono)}
+[data-theme^="apple"] button{background:var(--pearl);color:var(--pearl-ink);border:3px solid var(--ring-soft);
+  border-radius:11px;font-weight:400;font-size:14px;letter-spacing:-.224px;padding:8px 15px}
+[data-theme^="apple"] button:hover{background:color-mix(in srgb,var(--ink) 5%,var(--pearl));color:var(--ink)}
+[data-theme^="apple"] button:active{transform:scale(.95)}
+[data-theme^="apple"] button.primary{background:var(--cta);border:3px solid transparent;color:var(--on-cta);
+  border-radius:var(--radius-cta);font-size:17px;letter-spacing:-.374px;padding:11px 22px}
+[data-theme^="apple"] button.primary:hover{background:color-mix(in srgb,var(--cta) 88%,#000)}
+[data-theme^="apple"] button.mini{border-width:2px;font-size:12px;padding:3px 10px}
+[data-theme^="apple"] button.danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+button.danger{border-color:var(--danger);color:var(--danger)}
+button.danger:hover{background:var(--danger);color:var(--on-danger)}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important}
+}
+
+/* ============ 应用骨架：侧栏 = chrome（Codex 式，无全局顶栏） ============ */
+.psb{flex:0 0 236px;display:flex;flex-direction:column;min-height:0;border-right:var(--hair);background:var(--paper2)}
+.psb.collapsed{display:none}
+.psb-head{display:flex;align-items:center;gap:10px;padding:16px 16px 12px}
+.psb-head .sq{width:22px;height:22px;background:var(--accent);flex-shrink:0}
+.psb-head b{font-size:15px;letter-spacing:.02em}
+.psb-head .microlabel{display:block;margin-top:1px}
+.psb-collapse{margin-left:auto;border:none;background:none;padding:4px 6px;color:var(--ink50);font-size:12px}
+.psb-collapse:hover{background:var(--card);color:var(--ink)}
+.psb-new{margin:2px 14px 12px;display:flex;align-items:center;justify-content:center;gap:8px;width:calc(100% - 28px)}
+.psb-group-label{padding:10px 16px 4px}
+.psb-list{flex:1;overflow-y:auto;padding:0 10px}
+.psb-row{padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;display:flex;flex-wrap:wrap;
+  align-items:baseline;gap:4px 8px;margin-bottom:2px;transition:background .15s var(--ease-out-quint)}
+.psb-row:hover,.psb-row:focus-visible{background:var(--card)}
+.psb-row.on{background:var(--card);box-shadow:inset 2px 0 0 var(--ink)}
+.psb-row:focus-visible{outline:2px solid var(--accent-focus);outline-offset:-2px}
+.psb-name{font-size:13px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.psb-meta{font-family:var(--mono);font-size:10px;color:var(--ink50)}
+.psb-meta .live{color:var(--accent);animation:pulse 1.5s ease-in-out infinite}
+.psb-row .acts{display:none;gap:4px;margin-left:auto}
+.psb-row:hover .acts,.psb-row:focus-within .acts{display:flex}
+.psb-row .acts button{border:none;background:none;padding:2px 5px;font-size:11px;color:var(--ink50)}
+.psb-row .acts button:hover{background:var(--ink);color:var(--paper)}
+.psb-row .acts button.del:hover{background:var(--danger);color:var(--on-danger)}
+
+/* ---- 侧栏底部固定区（本原型的主角；三变体各自形态，body[data-variant] 决定显示） ---- */
+.psb-foot{flex:0 0 auto;border-top:var(--hair);background:var(--paper2)}
+.psb-foot>div{display:none}
+[data-variant="A"] .foot-a,[data-variant="B"] .foot-b,[data-variant="C"] .foot-c{display:block}
+.foot-set{display:flex;width:100%;align-items:center;gap:10px;border:none;background:none;text-align:left;
+  padding:13px 16px;font-size:12.5px;font-weight:600;letter-spacing:.02em;border-radius:0;color:var(--ink)}
+.foot-set:hover{background:var(--card);color:var(--ink)}
+.foot-set.on{background:var(--card);box-shadow:inset 2px 0 0 var(--ink)}
+.foot-set svg{flex-shrink:0}
+.foot-set .k{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:400;color:var(--ink50)}
+[data-theme^="apple"] .foot-set{background:transparent;border:none;border-radius:0;padding:13px 16px}
+[data-theme^="apple"] .foot-set:hover,[data-theme^="apple"] .foot-set.on{background:var(--card)}
+.foot-acct{display:flex;width:100%;align-items:center;gap:9px;border:none;background:none;text-align:left;
+  padding:11px 16px;font-size:12px;border-radius:0;color:var(--ink)}
+.foot-acct:hover{background:var(--card);color:var(--ink)}
+.foot-acct .dot{width:8px;height:8px;background:var(--ok);flex-shrink:0}
+.foot-acct b{font-weight:600}
+.foot-acct .st{color:var(--ink50);font-size:11px}
+.foot-acct .chev{margin-left:auto;color:var(--ink50);font-size:10px}
+
+/* ============ 主区 ============ */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--paper)}
+.view{flex:1;display:flex;flex-direction:column;min-height:0}
+.view[hidden]{display:none}
+.view-head{display:flex;align-items:center;gap:14px;padding:14px 28px 12px;flex-wrap:wrap}
+.view-head .exp{display:none;border:none;background:none;padding:4px 8px;color:var(--ink70);font-size:14px}
+.main.no-psb .view-head .exp{display:block}
+.view-head h1{font-size:19px;font-weight:700;line-height:1.4}
+.view-head .round-src{font-family:var(--mono);font-size:10px;color:var(--ink50)}
+.view-head .spacer{flex:1}
+.roundstrip{display:flex;align-items:center;gap:10px;padding:0 28px 12px;border-bottom:var(--hair);flex-wrap:wrap}
+.roundstrip .flabel{flex-shrink:0}
+.rtab{font-family:var(--mono);font-size:12px;font-weight:700;min-width:32px;padding:4px 8px;border:1px solid var(--ink35);
+  background:var(--card);color:var(--ink70)}
+.rtab:hover:not(.on){border-color:var(--ink);color:var(--ink);background:var(--card)}
+.rtab.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+[data-theme^="apple"] .rtab{border-radius:var(--radius-sm)}
+[data-theme^="apple"] .rtab.on{background:var(--cta);border-color:var(--cta);color:var(--on-cta)}
+.round-aux{display:flex;gap:10px;align-items:baseline;font-size:11px;color:var(--ink50)}
+.roundstrip .acts{margin-left:auto;display:flex;gap:8px}
+
+.ws-statusbar{display:flex;align-items:center;gap:26px;padding:11px 28px;border-bottom:var(--hair);flex-wrap:wrap;background:var(--card)}
+.ws-stat{font-size:11px;color:var(--ink50)}
+.ws-stat b{font-family:var(--mono);font-size:14px;color:var(--ink);margin-left:6px}
+.badge{font-size:10px;font-weight:700;letter-spacing:.08em;padding:4px 12px;border:1.5px solid var(--ink);border-radius:var(--radius-round)}
+.badge.running{background:var(--ink);color:var(--paper);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+.runstrip{display:flex;flex-wrap:wrap;gap:1px;background:var(--ink15);border-bottom:var(--hair)}
+.runcell{background:var(--paper);padding:10px 16px;min-width:168px;flex:1}
+.rc-top{display:flex;align-items:center;gap:8px}
+.csq{width:8px;height:8px;flex-shrink:0}
+.runcell b{font-size:12.5px;line-height:1.45}
+.rc-status{font-family:var(--mono);font-size:10.5px;color:var(--ink50);margin-top:5px;min-height:15px}
+.rc-status.run{color:var(--ink);font-weight:600;animation:pulse 1.5s ease-in-out infinite}
+
+.ws-main{display:flex;flex:1 1 auto;min-height:0}
+.docpane{overflow-y:auto;padding:36px 34px 120px;border-right:2px solid var(--ink);position:relative;flex:0 0 58%}
+[data-theme^="apple"] .docpane{border-right:1px solid var(--ink15)}
+.divider-hint{position:absolute;top:14px;right:16px;font-family:var(--mono);font-size:9px;color:var(--ink35);letter-spacing:.1em}
+.docbody{max-width:720px;margin:0 auto;font-size:16.5px;line-height:1.95}
+[data-theme^="apple"] .docbody{font-size:17px;line-height:1.47;letter-spacing:-.374px}
+.blk{margin:0 0 26px;position:relative;margin-left:64px}
+.blk .bid{position:absolute;left:-64px;top:3px;font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:.04em;width:52px;text-align:right}
+.blk.h1{font-size:25px;font-weight:700;line-height:1.35;margin-left:0}
+.blk.h2{font-size:18.5px;font-weight:700;margin-top:34px;padding-top:14px;border-top:2px solid var(--ink);margin-left:0}
+[data-theme^="apple"] .blk.h2{border-top:1px solid var(--ink15)}
+.blk p{margin-bottom:14px}
+.hl{cursor:pointer;padding:1px 0;transition:background .15s var(--ease-out-quint)}
+.hl.u1{box-shadow:inset 0 -2px 0 var(--u1)}
+.hl.u2{box-shadow:inset 0 -2px 0 var(--u1),inset 0 -5px 0 var(--u2)}
+.hl:hover{background:color-mix(in srgb,var(--u1) 22%,transparent)}
+.hl.sel{background:color-mix(in srgb,var(--u1) 26%,transparent);outline:2px solid var(--accent);outline-offset:1px;
+  animation:hlflash .4s var(--ease-out-quint)}
+@keyframes hlflash{from{background:color-mix(in srgb,var(--u1) 45%,transparent)}to{background:color-mix(in srgb,var(--u1) 26%,transparent)}}
+
+.sidepane{flex:1;overflow:hidden;background:var(--card);display:flex;flex-direction:column;min-width:0}
+.side-tabs{display:flex;border-bottom:var(--hair);flex:0 0 auto}
+.side-tab{flex:1;padding:13px 0;text-align:center;font-size:11px;font-weight:700;letter-spacing:.12em;cursor:pointer;
+  color:var(--ink50);border:none;background:none;border-bottom:3px solid transparent;border-radius:0}
+.side-tab:hover{color:var(--ink);background:none}
+.side-tab:focus-visible{outline:2px solid var(--accent-focus);outline-offset:-2px}
+.side-tab.on{color:var(--ink);border-bottom-color:var(--accent)}
+.side-tab .tn{font-family:var(--mono);color:var(--accent);margin-left:5px}
+[data-theme^="apple"] .side-tabs{gap:2px;padding:3px;margin:10px 12px;background:var(--paper2);border-radius:var(--radius-sm);border-bottom:none}
+[data-theme^="apple"] .side-tab{border-radius:6px;border-bottom:3px solid transparent;font-weight:600}
+[data-theme^="apple"] .side-tab.on{background:var(--card);color:var(--ink);border-bottom-color:transparent}
+.filters{padding:12px 18px;border-bottom:var(--hair);display:flex;flex-direction:column;gap:9px}
+.frow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.frow .flabel{width:64px;flex-shrink:0}
+.fchip{font-size:11px;padding:3px 10px;border:1px solid var(--ink35);cursor:pointer;color:var(--ink70);user-select:none;
+  border-radius:var(--radius-round);transition:background .15s var(--ease-out-quint),color .15s var(--ease-out-quint),border-color .15s var(--ease-out-quint)}
+.fchip:hover{border-color:var(--ink)}
+.fchip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.fchip .cnt{font-family:var(--mono);font-size:10px;margin-left:4px}
+[data-theme^="apple"] .fchip{background:var(--card);border:1px solid var(--ink15)}
+[data-theme^="apple"] .fchip.on{background:var(--cta);border-color:var(--cta);color:var(--on-cta)}
+.cards{padding:16px 18px 80px;flex:1;min-height:0;overflow-y:auto}
+.card{border:1px solid var(--ink15);background:var(--card);margin-bottom:14px;padding:13px 15px;cursor:pointer;
+  border-radius:var(--radius);transition:border-color .15s var(--ease-out-quint);
+  animation:cardin .22s var(--ease-out-quint) backwards;animation-delay:calc(min(var(--i,0),12)*35ms)}
+@keyframes cardin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card:hover{border-color:var(--ink)}
+.card.sel{outline:2px solid var(--accent);outline-offset:2px}
+[data-theme^="apple"] .card.sel{outline:2px solid var(--accent-focus);outline-offset:-1px}
+.card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.cat-tag{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.06em}
+.sev{font-size:10px;font-weight:700;padding:2px 8px;letter-spacing:.08em;border-radius:var(--radius-round)}
+.sev.high{background:var(--danger);color:var(--on-danger)}
+.sev.medium{border:1.5px solid var(--ochre);color:var(--ochre)}
+.sev.low{border:1.5px solid var(--gray);color:var(--gray)}
+.bidref{font-family:var(--mono);font-size:10px;color:var(--ink50);margin-left:auto}
+.card h4{font-size:14px;font-weight:700;line-height:1.45;margin-bottom:8px}
+.card .quote{font-size:12.5px;line-height:1.7;background:color-mix(in srgb,var(--cc) 10%,var(--paper2));
+  padding:8px 11px;margin-bottom:9px;color:var(--ink70)}
+.card .quote::before{content:"原文 ";font-size:10px;letter-spacing:.12em;color:var(--ink50);display:block;margin-bottom:2px}
+.card p{font-size:12.5px;line-height:1.65}
+
+/* ============ 设置内容（模板克隆进主区页 / 抽屉两处） ============ */
+.settings-page{flex:1;overflow-y:auto}
+.set-wrap{max-width:880px;margin:0 auto;padding:34px 40px 100px}
+.set-head{display:flex;align-items:baseline;gap:14px;margin-bottom:26px}
+.set-head h1{font-size:21px;font-weight:700}
+[data-theme^="apple"] .set-head h1{font-size:21px;font-weight:600;letter-spacing:.231px}
+.set-back{border:none;background:none;padding:4px 10px 4px 0;color:var(--ink70)}
+.set-back:hover{background:none;color:var(--ink)}
+.set-sec{margin-bottom:44px}
+.set-sec .sechead{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.set-sec .sechead .n{font-family:var(--mono);color:var(--accent);font-weight:700;font-size:12px}
+.set-sec .sechead h2{font-size:17px;font-weight:700}
+[data-theme^="apple"] .set-sec .sechead h2{font-weight:600}
+.set-sec .sechead .hint{font-size:11px;color:var(--ink50);margin-left:auto}
+.model-row{border:var(--hair);margin-bottom:12px;background:var(--card);border-radius:var(--radius)}
+.mr-top{display:flex;align-items:center;gap:12px;padding:12px 16px;flex-wrap:wrap}
+.mr-top b{font-size:13.5px;font-weight:600;line-height:1.45}
+.chip{font-family:var(--mono);font-size:10px;border:1px solid var(--ink35);color:var(--ink50);padding:2px 8px}
+.def-chip{color:var(--accent);border-color:var(--accent)}
+.mr-top .spacer{flex:1}
+.cat-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border:var(--hair);margin-bottom:8px;
+  background:var(--card);border-radius:var(--radius);flex-wrap:wrap}
+.cat-row b{font-size:13.5px;line-height:1.45}
+.cat-row .en{font-size:9px;letter-spacing:.14em;color:var(--ink50);text-transform:uppercase}
+.cat-row .ctl{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink50)}
+.cat-row .spacer{flex:1}
+.info-note{font-size:11px;color:var(--ink50);line-height:1.7;border:var(--hair);padding:10px 12px;max-width:680px;margin-top:14px}
+
+/* ============ 变体 B：账户菜单 popover（swiss 硬影 / apple 毛玻璃） ============ */
+.acct-pop{position:fixed;z-index:60;background:var(--card);border:2px solid var(--ink);min-width:230px;
+  box-shadow:var(--shadow-pop);border-radius:var(--radius);animation:popin .16s var(--ease-out-quint);transform-origin:bottom left}
+@keyframes popin{from{opacity:0;transform:scale(.97) translateY(4px)}to{opacity:1;transform:none}}
+[data-theme^="apple"] .acct-pop{background:color-mix(in srgb,var(--paper) 82%,transparent);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border:1px solid var(--ink15);box-shadow:none}
+.acct-pop .pop-h{font-size:10px;letter-spacing:.15em;color:var(--ink50);font-weight:700;padding:9px 12px 5px}
+.acct-pop .pop-item{display:flex;gap:8px;align-items:center;padding:8px 12px;cursor:pointer;border-top:var(--hair);font-size:12.5px}
+.acct-pop .pop-item:hover{background:var(--paper2)}
+
+/* ============ 变体 C：滑出抽屉 ============ */
+.scrim{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.22);opacity:0;pointer-events:none;
+  transition:opacity .2s var(--ease-out-quint)}
+.scrim.show{opacity:1;pointer-events:auto}
+[data-theme^="apple"] .scrim{background:rgba(0,0,0,.32)}
+.drawer{position:fixed;top:0;bottom:0;left:0;width:min(480px,90vw);z-index:80;background:var(--paper);
+  border-right:2px solid var(--ink);transform:translateX(-102%);transition:transform .22s var(--ease-out-quint);
+  display:flex;flex-direction:column}
+[data-theme^="apple"] .drawer{border-right:1px solid var(--ink15)}
+.drawer.show{transform:none}
+.drawer-head{display:flex;align-items:center;gap:12px;padding:18px 22px 12px;border-bottom:var(--hair)}
+.drawer-head h2{font-size:17px;font-weight:700}
+[data-theme^="apple"] .drawer-head h2{font-weight:600}
+.drawer-body{flex:1;overflow-y:auto;padding:20px 22px 60px}
+.drawer .set-sec{margin-bottom:32px}
+
+/* ============ 原型切换条（评估工具，非设计一部分） ============ */
+.proto-bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:90;display:flex;align-items:center;
+  gap:10px;background:var(--ink);color:var(--paper);border:1.5px solid var(--accent);padding:8px 14px;
+  font-size:12px;border-radius:var(--radius-sm)}
+.proto-bar button{background:none;border:none;color:var(--paper);padding:2px 10px;font-size:13px}
+.proto-bar button:hover{background:var(--paper);color:var(--ink)}
+.proto-bar .vlabel{font-weight:700;letter-spacing:.02em}
+.proto-bar .vlabel small{font-weight:400;color:rgba(255,255,255,.72);margin-left:6px;letter-spacing:0}
+.proto-bar .tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+</style>
+</head>
+<body data-variant="A">
+
+<!-- ================= 左栏（chrome）：品牌 / 新建 / 项目列表 / 底部设置区 ================= -->
+<aside class="psb" id="psb">
+  <div class="psb-head">
+    <span class="sq"></span>
+    <div><b>ARGUS</b><span class="microlabel">AI 文稿审阅</span></div>
+    <button class="psb-collapse" title="收起侧栏（⌘B）" aria-label="收起侧栏" onclick="togglePsb(false)">«</button>
+  </div>
+  <button class="primary psb-new" onclick="alert('（原型桩）新建审阅')">＋ 新建审阅</button>
+
+  <div class="psb-group-label microlabel">进行中</div>
+  <div class="psb-list">
+    <div class="psb-row on" role="button" tabindex="0" onclick="pickProject(this)" onkeydown="if(event.key==='Enter')pickProject(this)">
+      <span class="psb-name">产品发布博客</span>
+      <span class="psb-meta"><span class="live">●</span> 第 3 轮 · 审阅中</span>
+      <span class="acts"><button title="重命名">✎</button><button class="del" title="删除（8 秒可撤销）">✕</button></span>
+    </div>
+    <div class="psb-row" role="button" tabindex="0" onclick="pickProject(this)" onkeydown="if(event.key==='Enter')pickProject(this)">
+      <span class="psb-name">季度述职演讲稿</span>
+      <span class="psb-meta">第 2 轮</span>
+      <span class="acts"><button title="重命名">✎</button><button class="del" title="删除（8 秒可撤销）">✕</button></span>
+    </div>
+    <div class="psb-group-label microlabel">更早</div>
+    <div class="psb-row" role="button" tabindex="0" onclick="pickProject(this)" onkeydown="if(event.key==='Enter')pickProject(this)">
+      <span class="psb-name">毕业论文第三章</span>
+      <span class="psb-meta">第 5 轮</span>
+      <span class="acts"><button title="重命名">✎</button><button class="del" title="删除（8 秒可撤销）">✕</button></span>
+    </div>
+    <div class="psb-row" role="button" tabindex="0" onclick="pickProject(this)" onkeydown="if(event.key==='Enter')pickProject(this)">
+      <span class="psb-name">团队周报模板</span>
+      <span class="psb-meta">第 1 轮</span>
+      <span class="acts"><button title="重命名">✎</button><button class="del" title="删除（8 秒可撤销）">✕</button></span>
+    </div>
+  </div>
+
+  <!-- 变体 A/C：一行式「设置」入口（A、C 共用此标记，B 显示下方账户行） -->
+  <div class="psb-foot foot-a foot-c">
+    <button class="foot-set" id="foot-set-btn" onclick="openSettings()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      设置<span class="k" id="foot-set-k"></span>
+    </button>
+  </div>
+
+  <!-- 变体 B：模型账户行（Codex 式底部账户区） -->
+  <div class="psb-foot foot-b">
+    <button class="foot-acct" id="foot-acct-btn" onclick="toggleAcctPop(event)" aria-haspopup="menu">
+      <span class="dot"></span>
+      <b>GLM-4.7</b><span class="st">· 就绪</span>
+      <span class="chev">▲</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ================= 主区 ================= -->
+<main class="main" id="main">
+
+  <!-- 工作台视图 -->
+  <div class="view" id="view-ws">
+    <div class="view-head">
+      <button class="exp" title="展开审阅列表（⌘B）" aria-label="展开审阅列表" onclick="togglePsb(true)">☰</button>
+      <h1>产品发布博客</h1>
+      <span class="round-src">第 3 轮 · 2026-10-04</span>
+      <span class="spacer"></span>
+      <span class="badge running">审阅中</span>
+    </div>
+    <div class="roundstrip">
+      <span class="flabel">轮次</span>
+      <button class="rtab">1</button>
+      <button class="rtab">2</button>
+      <button class="rtab on">3</button>
+      <span class="round-aux">上轮 8 个问题 · 3 已修改</span>
+      <span class="acts">
+        <button class="mini" onclick="alert('（原型桩）开新一轮')">＋ 开新一轮</button>
+        <button class="mini danger" title="删除后 8 秒内可在右下角撤销" onclick="alert('（原型桩）软删 + 撤销浮条')">删除本轮</button>
+      </span>
+    </div>
+    <div class="ws-statusbar">
+      <span class="ws-stat">文档字数<b>2 431</b></span>
+      <span class="ws-stat">已选类别<b>6</b></span>
+      <span class="ws-stat">类别进度<b>5/6</b></span>
+      <span class="ws-stat">批注<b>12</b></span>
+    </div>
+    <div class="runstrip">
+      <div class="runcell"><div class="rc-top"><span class="csq" style="background:var(--c-logic)"></span><b>逻辑</b></div><div class="rc-status">完成 · 3</div></div>
+      <div class="runcell"><div class="rc-top"><span class="csq" style="background:var(--c-thesis)"></span><b>论点</b></div><div class="rc-status">完成 · 2</div></div>
+      <div class="runcell"><div class="rc-top"><span class="csq" style="background:var(--c-argument)"></span><b>论证</b></div><div class="rc-status">完成 · 1</div></div>
+      <div class="runcell"><div class="rc-top"><span class="csq" style="background:var(--c-rhetoric)"></span><b>修辞</b></div><div class="rc-status run">正在分析全文……</div></div>
+      <div class="runcell"><div class="rc-top"><span class="csq" style="background:var(--c-structure)"></span><b>结构</b></div><div class="rc-status">完成 · 2</div></div>
+      <div class="runcell"><div class="rc-top"><span class="csq" style="background:var(--c-clarity)"></span><b>清晰度</b></div><div class="rc-status">完成 · 4</div></div>
+    </div>
+
+    <div class="ws-main">
+      <div class="docpane">
+        <span class="divider-hint">DOC · 只读</span>
+        <div class="docbody">
+          <div class="blk h1"><span class="bid">L2</span>产品的第二曲线：从工具到习惯</div>
+          <div class="blk" style="margin-left:64px"><span class="bid">L5</span>
+            <p>过去一年，我们把「审阅」做成了一个独立的产品动作，而不是写作工具里的一枚按钮。这个选择在当初看来冒险——市场上所有的助手都在往「一体化」的方向卷，而我们把镜头拆开，让每一个审阅视角独立运行、独立给出证据。</p>
+          </div>
+          <div class="blk" style="margin-left:64px"><span class="bid">L9</span>
+            <p><span class="hl u1" id="hl-1" style="--u1:var(--c-logic)">因为我们相信，专业写作者需要的不是一个全知的审稿人，</span>而是一组可以自己调校的镜头。全知意味着妥协：为了覆盖所有文体，每个判断都必须是平均值。而平均值恰恰是专业写作最不需要的东西。</p>
+          </div>
+          <div class="blk h2"><span class="bid">L12</span>证据链：意见必须指回原文</div>
+          <div class="blk" style="margin-left:64px"><span class="bid">L14</span>
+            <p><span class="hl u2" id="hl-2" style="--u1:var(--c-logic);--u2:var(--c-clarity)">每一条意见都用三信号锚定到原文的精确位置，锚不住的诚实标注、绝不假装定位。</span>这不是一个技术细节，而是产品的信任基础：当你知道每一句批注都能被追溯到原文，你才会真正读它。</p>
+          </div>
+          <div class="blk" style="margin-left:64px"><span class="bid">L18</span>
+            <p>第二曲线不是新功能，而是新习惯：写作者先自查、再交付。我们希望 Argus 成为这个习惯里那盏不刺眼的台灯。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidepane">
+        <div class="side-tabs" role="tablist">
+          <button class="side-tab on" role="tab" aria-selected="true">批注<span class="tn">12</span></button>
+          <button class="side-tab" role="tab">报告</button>
+          <button class="side-tab" role="tab">对比<span class="tn">R3</span></button>
+        </div>
+        <div class="filters">
+          <div class="frow">
+            <span class="flabel">类别</span>
+            <span class="fchip on">全部<span class="cnt">12</span></span>
+            <span class="fchip">逻辑<span class="cnt">3</span></span>
+            <span class="fchip">论点<span class="cnt">2</span></span>
+            <span class="fchip">论证<span class="cnt">1</span></span>
+            <span class="fchip">结构<span class="cnt">2</span></span>
+            <span class="fchip">清晰度<span class="cnt">4</span></span>
+          </div>
+          <div class="frow">
+            <span class="flabel">严重度</span>
+            <span class="fchip on">全部</span><span class="fchip">高危</span><span class="fchip">建议修改</span><span class="fchip">可优化</span>
+          </div>
+        </div>
+        <div class="cards">
+          <div class="card" style="--i:0;--cc:var(--c-logic)" onclick="pickCard(this,'hl-1')" tabindex="0" onkeydown="if(event.key==='Enter')pickCard(this,'hl-1')">
+            <div class="card-head"><span class="cat-tag"><span class="csq" style="background:var(--cc)"></span>逻辑</span><span class="sev high">高危</span><span class="bidref">L9</span></div>
+            <h4>因果断言缺少支撑</h4>
+            <div class="quote">因为我们相信，专业写作者需要的不是一个全知的审稿人……</div>
+            <p>「相信」直接推出产品形态，中间缺少用户证据。建议补充访谈或使用数据，或将断言降级为假设句式。</p>
+          </div>
+          <div class="card" style="--i:1;--cc:var(--c-clarity)" onclick="pickCard(this,'hl-2')" tabindex="0" onkeydown="if(event.key==='Enter')pickCard(this,'hl-2')">
+            <div class="card-head"><span class="cat-tag"><span class="csq" style="background:var(--cc)"></span>清晰度</span><span class="sev medium">建议修改</span><span class="bidref">L14</span></div>
+            <h4>58 字长句建议拆分</h4>
+            <div class="quote">每一条意见都用三信号锚定到原文的精确位置……</div>
+            <p>双重否定加三个从句，阅读负担高。建议在「诚实标注」后断句，每句只承载一个主张。</p>
+          </div>
+          <div class="card" style="--i:2;--cc:var(--c-structure)" tabindex="0">
+            <div class="card-head"><span class="cat-tag"><span class="csq" style="background:var(--cc)"></span>结构</span><span class="sev low">可优化</span><span class="bidref">L12</span></div>
+            <h4>小节之间缺过渡</h4>
+            <p>「证据链」一节直接承接前段结论，缺一句桥接。建议用一句「这种拆解如何取信于人？」开启。</p>
+          </div>
+          <div class="card" style="--i:3;--cc:var(--c-thesis)" tabindex="0">
+            <div class="card-head"><span class="cat-tag"><span class="csq" style="background:var(--cc)"></span>论点</span><span class="sev medium">建议修改</span><span class="bidref">L5</span></div>
+            <h4>核心主张出现两个版本</h4>
+            <p>「独立产品动作」与「不刺眼的台灯」是两种定位强度。建议统一为后者，前者降为背景叙述。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置视图（变体 A/B 的目的地） -->
+  <div class="view" id="view-settings" hidden></div>
+</main>
+
+<!-- 变体 B 账户菜单 -->
+<div class="acct-pop" id="acct-pop" hidden role="menu">
+  <div class="pop-h">GLM-4.7 · 智谱</div>
+  <div class="pop-item" role="menuitem" onclick="openSettings();closeAcctPop()">⚙ 设置</div>
+  <div class="pop-item" role="menuitem" onclick="toggleThemeAxis();closeAcctPop()">◐ 切换主题风格</div>
+  <div class="pop-item" role="menuitem" onclick="alert('（原型桩）重新运行首次引导')">↻ 重新运行引导</div>
+  <div class="pop-item" role="menuitem" onclick="alert('ARGUS 0.1.0 · 原型')">ⓘ 关于 Argus</div>
+</div>
+
+<!-- 变体 C 抽屉 -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer" aria-label="设置">
+  <div class="drawer-head">
+    <h2>设置</h2>
+    <button class="mini" style="margin-left:auto" onclick="closeDrawer()">关闭 ESC</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<!-- 设置内容模板（克隆进 主区页 与 抽屉） -->
+<template id="tpl-settings">
+  <div class="set-sec">
+    <div class="sechead"><span class="n">S.1</span><h2>模型配置</h2><span class="hint">Key 存系统钥匙串</span></div>
+    <div class="model-row"><div class="mr-top"><b>GLM-4.7</b><span class="chip def-chip">默认</span><span class="chip">就绪</span><span class="spacer"></span><button class="mini">测试连接</button><button class="mini">编辑</button></div></div>
+    <div class="model-row"><div class="mr-top"><b>DeepSeek-V3</b><span class="spacer"></span><button class="mini">设为默认</button><button class="mini">编辑</button><button class="mini danger">删除</button></div></div>
+    <div class="model-row"><div class="mr-top"><b>Kimi K2</b><span class="spacer"></span><button class="mini">设为默认</button><button class="mini">编辑</button><button class="mini danger">删除</button></div></div>
+    <button>＋ 新增模型配置</button>
+  </div>
+  <div class="set-sec">
+    <div class="sechead"><span class="n">S.2</span><h2>审阅类别</h2><span class="hint">每类独立 Prompt</span></div>
+    <div class="cat-row"><span class="csq" style="background:var(--c-logic);width:10px;height:10px"></span><b>逻辑</b><span class="en">LOGIC</span><span class="spacer"></span><label class="ctl"><input type="checkbox" checked disabled> 启用</label><button class="mini">编辑 Prompt</button></div>
+    <div class="cat-row"><span class="csq" style="background:var(--c-thesis);width:10px;height:10px"></span><b>论点</b><span class="en">THESIS</span><span class="spacer"></span><label class="ctl"><input type="checkbox" checked disabled> 启用</label><button class="mini">编辑 Prompt</button></div>
+    <div class="cat-row"><span class="csq" style="background:var(--c-rhetoric);width:10px;height:10px"></span><b>修辞</b><span class="en">RHETORIC</span><span class="spacer"></span><label class="ctl"><input type="checkbox" checked disabled> 启用</label><button class="mini">编辑 Prompt</button></div>
+    <div class="cat-row"><span class="csq" style="background:var(--c-speech);width:10px;height:10px"></span><b>演讲表达</b><span class="en">SPEECH</span><span class="spacer"></span><label class="ctl"><input type="checkbox" disabled> 启用</label><button class="mini">编辑 Prompt</button></div>
+  </div>
+  <div class="set-sec">
+    <div class="sechead"><span class="n">S.3</span><h2>外观</h2><span class="hint">主题与明暗独立 · 立即生效</span></div>
+    <div class="frow" style="margin-bottom:10px">
+      <span class="flabel" style="width:40px">主题</span>
+      <span class="fchip" data-theme-opt="swiss" onclick="setThemeAxis('swiss')">瑞士风格</span>
+      <span class="fchip" data-theme-opt="apple" onclick="setThemeAxis('apple')">Apple 风格</span>
+    </div>
+    <div class="frow">
+      <span class="flabel" style="width:40px">明暗</span>
+      <span class="fchip" data-app-opt="light" onclick="setAppearance('light')">亮色</span>
+      <span class="fchip" data-app-opt="dark" onclick="setAppearance('dark')">暗色</span>
+      <span class="fchip" data-app-opt="system" onclick="setAppearance('system')">跟随系统</span>
+    </div>
+    <div class="info-note">当前生效：<span class="mono" id="skin-label"></span> —— 原型内真实切换，可现场确认四组合皮肤。</div>
+  </div>
+</template>
+
+<!-- 原型切换条 -->
+<div class="proto-bar" role="toolbar" aria-label="原型变体切换">
+  <span class="tag">原型</span>
+  <button onclick="cycleVariant(-1)" aria-label="上一个变体">←</button>
+  <span class="vlabel" id="vlabel"></span>
+  <button onclick="cycleVariant(1)" aria-label="下一个变体">→</button>
+</div>
+
+<script>
+/* ---------- 变体 ---------- */
+const VARIANTS = {
+  A: "A 设置行 · 主区页面",
+  B: "B 账户行 · 菜单 → 主区页面",
+  C: "C 设置行 · 滑出抽屉",
+};
+const DESC = {
+  A: "侧栏底部一行式「设置」，点击后主区切换为设置页",
+  B: "底部为模型状态行，点击弹菜单（最接近 Codex 截图）",
+  C: "点击后 480px 抽屉从左滑出，ESC 关闭",
+};
+let variant = new URLSearchParams(location.search).get("variant")?.toUpperCase();
+if (!VARIANTS[variant]) variant = "A";
+
+function applyVariant(v) {
+  variant = v;
+  document.body.dataset.variant = v; // 底部区显隐由 CSS 变体规则接管（foot-a 与 foot-c 共用标记）
+  document.getElementById("vlabel").innerHTML = VARIANTS[v] + "<small>" + DESC[v] + "</small>";
+  document.getElementById("foot-set-k").textContent = v === "C" ? "⌘," : "";
+  history.replaceState(null, "", "?variant=" + v);
+  // 切变体回到干净状态：关抽屉/菜单/设置页
+  closeDrawer(); closeAcctPop(); showWorkspace();
+}
+function cycleVariant(d) {
+  const keys = Object.keys(VARIANTS);
+  applyVariant(keys[(keys.indexOf(variant) + d + keys.length) % keys.length]);
+}
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  if (e.key === "ArrowLeft") cycleVariant(-1);
+  if (e.key === "ArrowRight") cycleVariant(1);
+  if (e.key === "Escape") { closeDrawer(); closeAcctPop(); }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") { e.preventDefault(); togglePsb(document.getElementById("psb").classList.contains("collapsed")); }
+});
+
+/* ---------- 设置内容装配（模板 → 主区页 + 抽屉） ---------- */
+const tpl = document.getElementById("tpl-settings");
+const pageWrap = document.createElement("div");
+pageWrap.className = "settings-page";
+const pageInner = document.createElement("div");
+pageInner.className = "set-wrap";
+const pageHead = document.createElement("div");
+pageHead.className = "set-head";
+pageHead.innerHTML = '<button class="set-back" onclick="showWorkspace()">← 返回审阅</button><h1>设置</h1><span class="hint" style="font-size:11px;color:var(--ink50)">入口已移至左栏底部</span>';
+pageInner.appendChild(pageHead);
+pageInner.appendChild(tpl.content.cloneNode(true));
+pageWrap.appendChild(pageInner);
+document.getElementById("view-settings").appendChild(pageWrap);
+document.getElementById("drawer-body").appendChild(tpl.content.cloneNode(true));
+
+/* ---------- 设置打开/关闭（按变体分派） ---------- */
+function openSettings() {
+  if (variant === "C") {
+    document.getElementById("drawer").classList.add("show");
+    document.getElementById("scrim").classList.add("show");
+  } else {
+    document.getElementById("view-ws").hidden = true;
+    document.getElementById("view-settings").hidden = false;
+    document.querySelector(".foot-set")?.classList.add("on");
+  }
+}
+function showWorkspace() {
+  document.getElementById("view-ws").hidden = false;
+  document.getElementById("view-settings").hidden = true;
+  document.querySelector(".foot-set")?.classList.remove("on");
+}
+function closeDrawer() {
+  document.getElementById("drawer").classList.remove("show");
+  document.getElementById("scrim").classList.remove("show");
+}
+
+/* ---------- 变体 B 账户菜单 ---------- */
+function toggleAcctPop(e) {
+  e.stopPropagation();
+  const pop = document.getElementById("acct-pop");
+  if (!pop.hidden) return closeAcctPop();
+  pop.hidden = false;
+  const r = document.getElementById("foot-acct-btn").getBoundingClientRect();
+  pop.style.left = r.left + "px";
+  pop.style.bottom = window.innerHeight - r.top + 6 + "px";
+}
+function closeAcctPop() { document.getElementById("acct-pop").hidden = true; }
+document.addEventListener("click", (e) => {
+  const pop = document.getElementById("acct-pop");
+  if (!pop.hidden && !pop.contains(e.target) && !document.getElementById("foot-acct-btn").contains(e.target)) closeAcctPop();
+});
+
+/* ---------- 主题（真实切换） ---------- */
+let themeAxis = "swiss", appearance = "light";
+function applySkin() {
+  const dark = appearance === "dark" || (appearance === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = `${themeAxis}-${dark ? "dark" : "light"}`;
+  document.querySelectorAll("[data-theme-opt]").forEach((el) => el.classList.toggle("on", el.dataset.themeOpt === themeAxis));
+  document.querySelectorAll("[data-app-opt]").forEach((el) => el.classList.toggle("on", el.dataset.appOpt === appearance));
+  document.querySelectorAll("#skin-label").forEach((el) => (el.textContent = `${themeAxis}-${dark ? "dark" : "light"}`));
+}
+function setThemeAxis(t) { themeAxis = t; applySkin(); }
+function setAppearance(a) { appearance = a; applySkin(); }
+function toggleThemeAxis() { setThemeAxis(themeAxis === "swiss" ? "apple" : "swiss"); }
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => appearance === "system" && applySkin());
+
+/* ---------- 侧栏 / 项目 / 卡片 ---------- */
+function togglePsb(show) {
+  document.getElementById("psb").classList.toggle("collapsed", !show);
+  document.getElementById("main").classList.toggle("no-psb", !show);
+}
+function pickProject(el) {
+  document.querySelectorAll(".psb-row").forEach((r) => r.classList.remove("on"));
+  el.classList.add("on");
+  showWorkspace(); // 从设置返回工作台
+}
+function pickCard(cardEl, hlId) {
+  document.querySelectorAll(".card").forEach((c) => c.classList.remove("sel"));
+  cardEl.classList.add("sel");
+  document.querySelectorAll(".hl").forEach((h) => h.classList.remove("sel"));
+  const hl = document.getElementById(hlId);
+  if (hl) { hl.classList.remove("sel"); void hl.offsetWidth; hl.classList.add("sel"); hl.scrollIntoView({ block: "center", behavior: "smooth" }); }
+}
+document.querySelectorAll(".rtab").forEach((t) => t.addEventListener("click", () => {
+  document.querySelectorAll(".rtab").forEach((x) => x.classList.remove("on"));
+  t.classList.add("on");
+}));
+
+applyVariant(variant);
+applySkin();
+</script>
+</body>
+</html>

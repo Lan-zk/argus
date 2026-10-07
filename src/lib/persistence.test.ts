@@ -155,6 +155,7 @@ describe("最近一次 Review 的保存与恢复（spec: 恢复最近一次 Revi
           reason: "r",
           suggestion: "s",
           anchorStatus: "unanchored",
+          anchors: [],
         },
       ],
       report: {

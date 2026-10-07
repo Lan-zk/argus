@@ -47,7 +47,7 @@ npm run tauri build   # 产出 .app 与 .dmg
 - `src-tauri/target/release/bundle/macos/Argus.app`
 - `src-tauri/target/release/bundle/dmg/Argus_0.1.0_aarch64.dmg`
 
-发布：推送 `v*` tag 触发 [GitHub Actions](./.github/README.md)，矩阵构建 macOS（arm64 / x64 `.dmg`）、Windows（NSIS / MSI）、Linux（`.deb` / `.AppImage`）并创建 Draft Release。
+发布：推送 `v*` tag 触发 [GitHub Actions](./.github/README.md)，矩阵构建 macOS（arm64 / x64 `.dmg`）、Windows（NSIS / MSI）、Linux（`.deb` / `.AppImage`）并创建 Draft Release。发布时附带 minisign 签名的更新产物与 `latest.json`；**手动点「Publish」发布 Draft 后，已装应用的「检查更新」才会看到新版本**——发布动作即更新对用户可见的开关（spec: app-updates）。
 
 ## 模型配置指引
 
@@ -92,7 +92,7 @@ public/            # Vite 公共静态资源（应用图标）
 | [`src/pages/`](./src/pages/README.md) | NewReview / Workspace / Settings 三页 |
 | [`src/components/`](./src/components/README.md) | DocViewer（块渲染+重叠高亮）、FindingCard、ReportView、OnboardingLayer、CategoryColorPicker |
 | [`src/lib/`](./src/lib/README.md) | tauri 环境与 fetch 通道、钥匙串封装、持久化（plugin-store）、主题应用、对比度 |
-| [`src/styles/`](./src/styles/README.md) | design token（主题 × 明暗四组合，迁移自 design/02 原型与 DESIGN.md） |
+| [`src/styles/`](./src/styles/README.md) | design token（主题 × 明暗四组合，迁移自 design/02 原型与 Apple 设计分析） |
 | [`src-tauri/src/`](./src-tauri/src/README.md) | Rust 壳：钥匙串 command 与插件注册 |
 | [`src-tauri/capabilities/`](./src-tauri/capabilities/README.md) | Tauri 权限范围（http 白名单、store） |
 | [`src-tauri/icons/`](./src-tauri/icons/README.md) | 应用图标全套（`tauri icon` 生成物） |

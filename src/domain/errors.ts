@@ -47,7 +47,7 @@ function msg(kind: AppErrorKind, extra = ""): string {
     case "model_not_found":
       return `模型不存在（404）。请检查模型名称拼写是否与 Provider 一致；此类配置错误不会自动重试。${extra}`;
     case "base_url_unreachable":
-      return `Base URL 无法连接。请检查网络与 Base URL 地址是否正确（含 https:// 前缀与版本路径）；此类配置错误不会自动重试。${extra}`;
+      return `无法连接模型服务。请检查网络，或到 设置 → Models 核对该模型的服务地址（Base URL，含 https:// 前缀与版本路径）；此类配置错误不会自动重试。${extra}`;
     case "timeout":
       return `Provider 请求超时。建议检查网络后重跑该类别；网络类错误已自动重试至多 2 次。${extra}`;
     case "rate_limit":

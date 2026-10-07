@@ -1,0 +1,40 @@
+{
+  "settings": {
+    "models": [
+      {
+        "id": "m_solo",
+        "provider": "zhipu",
+        "model": "glm-4.7-flash",
+        "keyringRef": "m_solo",
+        "isDefault": true
+      }
+    ],
+    "categories": [
+      {
+        "id": "rhetoric",
+        "name": "修辞",
+        "prompt": "你是修辞审阅专家。检查排比滥用、比喻失当……（默认 Prompt 节选）",
+        "enabled": false,
+        "defaultSelected": false,
+        "order": 0
+      },
+      {
+        "id": "custom_pace",
+        "name": "叙事节奏",
+        "prompt": "你是叙事节奏审阅专家。检查节奏拖沓与过渡生硬……",
+        "enabled": true,
+        "defaultSelected": true,
+        "order": 1,
+        "color": "#336699"
+      }
+    ],
+    "draftText": "",
+    "ui": {
+      "splitPercent": 60,
+      "theme": "apple",
+      "appearance": "light",
+      "onboarded": true
+    }
+  },
+  "lastReview": null
+}

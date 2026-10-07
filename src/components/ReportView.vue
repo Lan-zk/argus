@@ -25,6 +25,15 @@ const priorityFindings = computed(() =>
 
 const catName = (id: string) => props.categories.find((c) => c.id === id)?.name ?? id;
 const failedNames = computed(() => props.report.failedCategoryIds.map(catName));
+
+/** 位置标签（spec: finding-anchor-spans）：行范围主锚显示 Lx–Ly，句级显示 Lx。 */
+function locLabel(f: Finding): string {
+  const p = f.anchors.find((a) => a.role === "primary") ?? f.anchors[0];
+  if (p?.scope === "range" && p.fromLine !== undefined && p.toLine !== undefined) {
+    return p.fromLine === p.toLine ? `L${p.fromLine}` : `L${p.fromLine}–L${p.toLine}`;
+  }
+  return f.line ? `L${f.line}` : "";
+}
 </script>
 
 <template>
@@ -47,13 +56,13 @@ const failedNames = computed(() => props.report.failedCategoryIds.map(catName));
         <span class="pn">{{ String(i + 1).padStart(2, "0") }}</span>
         <span class="csq" :style="{ background: colorMap[f.categoryId], width: '8px', height: '8px', display: 'inline-block' }"></span>
         <b>{{ f.title }}</b>
-        <span class="meta">{{ catName(f.categoryId) }} · {{ SEVERITY_ZH[f.severity] }}</span>
+        <span class="meta">{{ catName(f.categoryId) }} · {{ SEVERITY_ZH[f.severity] }}<template v-if="locLabel(f)"> · {{ locLabel(f) }}</template></span>
       </div>
       <p v-if="!priorityFindings.length" class="sum" style="color: var(--ink50)">本次 Review 未发现该类别下的明显问题。</p>
     </div>
 
     <div class="rp-sec">
-      <h3><span class="n">R.3</span>Category Summary</h3>
+      <h3><span class="n">R.3</span>分类小结</h3>
       <table class="catsum">
         <thead>
           <tr><th>类别</th><th>严重</th><th>建议修改</th><th>可优化</th><th>小结</th></tr>
@@ -66,21 +75,21 @@ const failedNames = computed(() => props.report.failedCategoryIds.map(catName));
             <td>{{ s.high }}</td>
             <td>{{ s.medium }}</td>
             <td>{{ s.low }}</td>
-            <td style="font-family: var(--sans); font-size: 12px">{{ s.summary }}</td>
+            <td class="sum">{{ s.summary }}</td>
           </tr>
           <tr v-for="fid in report.failedCategoryIds" :key="fid" class="failed-row">
             <td><span class="csq" style="background: var(--danger)"></span>{{ catName(fid) }}（失败）</td>
             <td>—</td>
             <td>—</td>
             <td>—</td>
-            <td style="font-family: var(--sans); font-size: 12px">执行失败，未产生结果</td>
+            <td class="sum">执行失败，未产生结果</td>
           </tr>
         </tbody>
       </table>
     </div>
 
     <div class="rp-sec">
-      <h3><span class="n">R.4</span>完整 Findings<span class="n">{{ findings.length }}</span></h3>
+      <h3><span class="n">R.4</span>全部批注<span class="n">{{ findings.length }}</span></h3>
       <button class="mini" @click="emit('open-findings')">在批注面板查看全部 →</button>
     </div>
   </div>

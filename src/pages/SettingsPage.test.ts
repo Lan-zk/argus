@@ -5,10 +5,12 @@ import { createPinia, setActivePinia } from "pinia";
 import SettingsPage from "./SettingsPage.vue";
 import { useSettingsStore } from "../stores/settings";
 import { useOnboardingStore } from "../stores/onboarding";
+import { useUpdateStore } from "../stores/update";
 import { useUiStore } from "../stores/ui";
 import { useThemeStore } from "../stores/theme";
 import { loadState } from "../lib/persistence";
 import { keyring } from "../lib/keyring";
+import { resetRepoForTests } from "../lib/repo";
 
 const REAL_FETCH = globalThis.fetch;
 
@@ -51,7 +53,7 @@ async function waitForOptions(w: Awaited<ReturnType<typeof mountPage>>, predicat
 describe("3.1 第一步：选服务", () => {
   it("pick 步渲染 29 个预设卡片（3 分组）+ 自定义连接 + 本地模型", async () => {
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click"); // ＋ 新增模型配置
+    await w.find("section .set-sec .set-tail > button").trigger("click"); // ＋ 新增模型配置
     expect(w.findAll(".preset-group").length).toBeGreaterThanOrEqual(4); // 3 分组 + 兜底组
     expect(w.findAll(".preset-card").length).toBe(36); // 34 预设 + 自定义 + 本地
     const labels = w.findAll(".preset-group > .microlabel").map((l) => l.text());
@@ -65,7 +67,7 @@ describe("3.1 第一步：选服务", () => {
 describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () => {
   it("选中 DeepSeek → 静态目录先行（离线），推荐默认预选", async () => {
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     const deepseek = w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!;
     await deepseek.trigger("click");
     await waitForOptions(w, (t) => t.length >= 2 && t.some((x) => x.includes("deepseek-flash")));
@@ -83,7 +85,7 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
   it("Key 失焦且非空 → 防抖后自动检索并合并去重（在线模型补入）", async () => {
     mockModelsFetch(["deepseek-flash", "deepseek-online-x"]);
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
     await waitForOptions(w, (t) => t.length >= 1);
     const before = w.find("select").findAll("option").length;
@@ -104,7 +106,7 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
       return new Response("{}", { status: 200 });
     }) as typeof fetch;
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
     await waitForOptions(w, (t) => t.length >= 1);
     const keyInput = w.find('input[type="password"]');
@@ -118,7 +120,7 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
   it("检索 401 → 可读弱提示，目录与选择不阻断", async () => {
     mockModelsFetch([], 401);
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
     await waitForOptions(w, (t) => t.length >= 2);
     const keyInput = w.find('input[type="password"]');
@@ -142,7 +144,7 @@ describe("3.2/3.3 预设 configure：唯一必填 Key + 失焦自动检索", () 
   it("保存预设 → store 落配置 + 钥匙串有条目", async () => {
     const w = await mountPage();
     const settings = useSettingsStore(); // 必须在 mountPage 之后取（同一 active pinia）
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("DeepSeek"))!.trigger("click");
     await waitForOptions(w, (t) => t.length >= 1);
     const keyInput = w.find('input[type="password"]');
@@ -182,7 +184,7 @@ describe("displayName 显示名称（spec: settings 显示名称场景）", () =
 
   it("自定义连接可填显示名称并保存", async () => {
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("自定义连接"))!.trigger("click");
     await flushPromises();
     const nameInput = w.find('input[placeholder*="自定义 ·"]');
@@ -278,7 +280,7 @@ describe("3.4 自定义连接", () => {
   it("全字段表单 + 检索按钮填充模型 + 手动输入并存", async () => {
     mockModelsFetch(["srv-a", "srv-b"]);
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("自定义连接"))!.trigger("click");
     await flushPromises();
     expect(w.find('input[placeholder*="api/paas"]').exists()).toBe(true); // Base URL
@@ -301,7 +303,7 @@ describe("3.4 自定义连接", () => {
 
   it("本地模型入口预填 Ollama BaseURL", async () => {
     const w = await mountPage();
-    await w.find("section .set-sec > button").trigger("click");
+    await w.find("section .set-sec .set-tail > button").trigger("click");
     await w.findAll(".preset-card").find((c) => c.text().includes("本地模型"))!.trigger("click");
     await flushPromises();
     expect((w.find('input[placeholder*="api/paas"]').element as HTMLInputElement).value).toBe(
@@ -358,6 +360,158 @@ describe("onboarding 重看入口（spec: onboarding 手动重看入口）", () 
     await onb.skip();
     expect(ui.page).toBe("settings"); // 回到进入前页面
     expect((await loadState()).settings.ui.onboarded).toBe(true); // 标记保持已完成
+    w.unmount();
+  });
+});
+
+describe("类别分组（spec: settings 类别分组管理）", () => {
+  beforeEach(() => {
+    resetRepoForTests(); // 干净存储：默认类别由 init 重新种子
+  });
+
+  /** 挂载并初始化设置（种入默认类别，分节才有内容）。 */
+  async function mountWithCategories() {
+    const w = await mountPage();
+    const settings = useSettingsStore();
+    await settings.init();
+    await flushPromises();
+    return { w, settings };
+  }
+
+  function sectionNames(w: Awaited<ReturnType<typeof mountPage>>): string[] {
+    return w.findAll("[data-group-sec]").map((s) => s.find(".grp-head b").text());
+  }
+
+  it("类别列表按组分节展示，通用虚拟组置顶（spec: 设置页类别列表按分组分节）", async () => {
+    const { w, settings } = await mountWithCategories();
+    const g = await settings.addGroup("小说");
+    await settings.assignCategoryGroup("logic", g.id);
+    await flushPromises();
+    expect(sectionNames(w)).toEqual(["通用", "小说"]); // 通用恒为首位
+    const secs = w.findAll("[data-group-sec]");
+    expect(secs[1].text()).toContain("逻辑"); // logic 落在小说分节
+    expect(secs[0].text()).not.toContain("逻辑");
+    // 通用分节无删除入口（虚拟组不可删）
+    expect(secs[0].find('[data-test="group-delete"]').exists()).toBe(false);
+    expect(secs[1].find('[data-test="group-delete"]').exists()).toBe(true);
+    w.unmount();
+  });
+
+  it("新建分组入口：命名后入列表并渲染分节", async () => {
+    const { w, settings } = await mountWithCategories();
+    await w.find('[data-test="add-group"]').trigger("click");
+    await w.find('[data-test="new-group-name"]').setValue("讲道稿");
+    await w.find('[data-test="new-group-ok"]').trigger("click");
+    await flushPromises();
+    expect(settings.groups.map((g) => g.name)).toEqual(["讲道稿"]);
+    expect(sectionNames(w)).toEqual(["通用", "讲道稿"]);
+    w.unmount();
+  });
+
+  it("重命名分组同步分节标题（spec: 重命名分组同步切换器）", async () => {
+    const { w, settings } = await mountWithCategories();
+    const g = await settings.addGroup("讲道");
+    await flushPromises();
+    const sec = w.findAll("[data-group-sec]")[1];
+    await sec.findAll("button").find((b) => b.text() === "重命名")!.trigger("click");
+    await w.find('[data-test="group-rename-input"]').setValue("讲道稿");
+    await w.findAll("button").find((b) => b.text() === "确定")!.trigger("click");
+    await flushPromises();
+    expect(settings.groups[0].name).toBe("讲道稿");
+    expect(sectionNames(w)).toEqual(["通用", "讲道稿"]);
+    void g;
+    w.unmount();
+  });
+
+  it("删除分组：确认文案含「N 个类别将移回通用」，确认后组移除、类别回落通用分节", async () => {
+    const { w, settings } = await mountWithCategories();
+    const g = await settings.addGroup("小说");
+    await settings.assignCategoryGroup("logic", g.id);
+    await settings.assignCategoryGroup("clarity", g.id);
+    await flushPromises();
+    expect(w.find('[data-test="group-delete-confirm"]').exists()).toBe(false);
+    await w.find('[data-test="group-delete"]').trigger("click");
+    const confirm = w.find('[data-test="group-delete-confirm"]');
+    expect(confirm.text()).toContain("2 个类别将移回通用");
+    expect(confirm.text()).toContain("类别本身不会被删除");
+    await w.find('[data-test="group-delete-confirm-ok"]').trigger("click");
+    await flushPromises();
+    expect(settings.groups).toHaveLength(0);
+    expect(sectionNames(w)).toEqual(["通用"]); // 只剩通用分节
+    expect(settings.categories.find((c) => c.id === "logic")?.groupId ?? null).toBeNull();
+    expect(w.find("[data-group-sec]").text()).toContain("逻辑"); // 类别仍在列表（通用节）
+    w.unmount();
+  });
+
+  it("编辑区「所属分组」选择器：调整后分节即时重排（spec: 调整类别归属）", async () => {
+    const { w, settings } = await mountWithCategories();
+    const g = await settings.addGroup("小说");
+    await flushPromises();
+    // 打开「逻辑」编辑区并切分组
+    const logicRow = w.findAll(".cat-set-row").find((r) => r.text().includes("逻辑"))!;
+    await logicRow.find("button.mini.primary").trigger("click"); // 编辑 Prompt（展开编辑区）
+    await logicRow.find('[data-test="cat-group-select"]').setValue(g.id);
+    await flushPromises();
+    expect(settings.categories.find((c) => c.id === "logic")?.groupId).toBe(g.id);
+    const secs = w.findAll("[data-group-sec]");
+    expect(secs[0].text()).not.toContain("逻辑"); // 移出通用
+    expect(secs[1].text()).toContain("逻辑"); // 移入小说
+    w.unmount();
+  });
+});
+
+// 「关于 · 检查更新」区块（spec: app-updates 版本检查时机）：unsupported 降级仅版本号；
+// 状态行各态渲染。状态机流转（静默/手动/下载安装）由 update.test.ts 覆盖，此处只验证 UI 呈现。
+describe("About 关于 · 检查更新", () => {
+  it("浏览器测试环境（unsupported）：仅显示版本号占位与提示，无检查按钮", async () => {
+    const w = await mountPage();
+    const sec = w.find('[data-test="about-sec"]');
+    expect(sec.exists()).toBe(true);
+    expect(sec.find('[data-test="about-version"]').text()).toContain("Argus v—");
+    expect(sec.find('[data-test="update-check"]').exists()).toBe(false);
+    expect(sec.text()).toContain("桌面应用");
+    w.unmount();
+  });
+
+  it("up-to-date：状态行显示已是最新（accent）", async () => {
+    const w = await mountPage();
+    const update = useUpdateStore();
+    update.$patch({ status: "up-to-date" });
+    await flushPromises();
+    expect(w.find('[data-test="update-status"]').text()).toContain("已是最新");
+    w.unmount();
+  });
+
+  it("available：显示新版本号并提供「立即更新」", async () => {
+    const w = await mountPage();
+    const update = useUpdateStore();
+    update.$patch({ status: "available", pending: { version: "0.2.0", notes: "" } });
+    await flushPromises();
+    expect(w.find('[data-test="update-status"]').text()).toContain("v0.2.0");
+    expect(w.find('[data-test="about-update-accept"]').text()).toContain("立即更新");
+    w.unmount();
+  });
+
+  it("check-failed：错误文案以 danger 色呈现", async () => {
+    const w = await mountPage();
+    const update = useUpdateStore();
+    update.$patch({ status: "check-failed", error: "检查更新失败：网络错误" });
+    await flushPromises();
+    const line = w.find('[data-test="update-status"]');
+    expect(line.text()).toContain("网络错误");
+    expect(line.attributes("style")).toContain("var(--danger)");
+    w.unmount();
+  });
+
+  it("downloading：进度百分比随 store 更新", async () => {
+    const w = await mountPage();
+    const update = useUpdateStore();
+    update.$patch({ status: "downloading", progress: 37 });
+    await flushPromises();
+    expect(w.find('[data-test="update-status"]').text()).toContain("37%");
+    update.$patch({ progress: null });
+    await flushPromises();
+    expect(w.find('[data-test="update-status"]').text()).not.toContain("%");
     w.unmount();
   });
 });
