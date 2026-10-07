@@ -148,7 +148,8 @@ function buildPdf(pages: { w: number; h: number; lines: PdfLine[] }[]): Uint8Arr
 }
 
 describe("extractPdfText（pdfjs 集成）", () => {
-  it("断行拼回段落 + 句读分段 + 多页以空行相接", async () => {
+  // CI 共享 runner 上 pdfjs worker 初始化/兜底重试慢于默认 5s 单测限时，集成用例放宽超时
+  it("断行拼回段落 + 句读分段 + 多页以空行相接", { timeout: 30000 }, async () => {
     const bytes = buildPdf([
       {
         w: 612,
@@ -174,13 +175,13 @@ describe("extractPdfText（pdfjs 集成）", () => {
     expect(text).toMatch(/here\.\n\nSecond page/);
   });
 
-  it("无文字层（扫描件）→ ScannedPdfError 且文案给出改用指引", async () => {
+  it("无文字层（扫描件）→ ScannedPdfError 且文案给出改用指引", { timeout: 30000 }, async () => {
     const bytes = buildPdf([{ w: 612, h: 792, lines: [] }]);
     await expect(extractPdfText(bytes.buffer as ArrayBuffer)).rejects.toBeInstanceOf(ScannedPdfError);
     await expect(extractPdfText(bytes.buffer as ArrayBuffer)).rejects.toThrow(/文字层/);
   });
 
-  it("略高于阈值的极短文本不判为扫描件", async () => {
+  it("略高于阈值的极短文本不判为扫描件", { timeout: 30000 }, async () => {
     expect(MIN_PDF_TEXT_CHARS).toBe(32);
     const bytes = buildPdf([
       { w: 612, h: 792, lines: [{ x: 50, y: 700, text: "Short but real text layer exists here ok." }] },
@@ -189,7 +190,7 @@ describe("extractPdfText（pdfjs 集成）", () => {
   });
 
   // 最后执行：兜底重跑会注入全局 pdfjsWorker，避免影响前面的用例状态
-  it("worker 与 workerSrc 资产同时失败 → 注入主线程 handler 后重跑成功（3.1 兜底）", async () => {
+  it("worker 与 workerSrc 资产同时失败 → 注入主线程 handler 后重跑成功（3.1 兜底）", { timeout: 30000 }, async () => {
     const pdfjs = await import("pdfjs-dist");
     const savedSrc = pdfjs.GlobalWorkerOptions.workerSrc;
     try {
