@@ -1,6 +1,6 @@
 // pdf 文字层提取（spec: document-import 提取与归一化）：断行拼段 / 双栏尽力聚类 /
 // 无文字层判定（tasks 3.2）+ pdfjs 管线集成与 worker 兜底（tasks 3.1）。
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { buildPageText, clusterLines, extractPdfText, joinParagraphs, MIN_PDF_TEXT_CHARS, ScannedPdfError, type TextPiece } from "./pdf";
 
 /** 便利构造：一行一个 piece。 */
@@ -147,8 +147,28 @@ function buildPdf(pages: { w: number; h: number; lines: PdfLine[] }[]): Uint8Arr
   return new TextEncoder().encode(out);
 }
 
+// 集成用例离线化：CI 共享 runner 上 happy-dom Worker / workerSrc 的网络失败是慢失败
+// （DNS 重试拖到超时），与本地快失败行为不一致。统一预注入主线程 worker（pdfjs 见
+// globalThis.pdfjsWorker 即不再 spawn 真 worker），零网络依赖；兜底用例以同步抛错的
+// Worker + 预置 rejected 加载器模拟双失败，同样离线复现 release CSP 下的真实路径。
+async function injectMainThreadWorker() {
+  const workerModule = await import("pdfjs-dist/build/pdf.worker.mjs");
+  (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker = workerModule;
+  const pdfjs = await import("pdfjs-dist");
+  Object.defineProperty(pdfjs.PDFWorker, "_setupFakeWorkerGlobal", {
+    value: Promise.resolve(workerModule.WorkerMessageHandler),
+    configurable: true,
+    writable: true,
+    enumerable: true,
+  });
+}
+
 describe("extractPdfText（pdfjs 集成）", () => {
-  // CI 共享 runner 上 pdfjs worker 初始化/兜底重试慢于默认 5s 单测限时，集成用例放宽超时
+  // CI 慢环境下 worker 初始化预算放宽（本地毫秒级）
+  beforeEach(async () => {
+    await injectMainThreadWorker();
+  });
+
   it("断行拼回段落 + 句读分段 + 多页以空行相接", { timeout: 30000 }, async () => {
     const bytes = buildPdf([
       {
@@ -189,20 +209,31 @@ describe("extractPdfText（pdfjs 集成）", () => {
     await expect(extractPdfText(bytes.buffer as ArrayBuffer)).resolves.toContain("Short but real");
   });
 
-  // 最后执行：兜底重跑会注入全局 pdfjsWorker，避免影响前面的用例状态
+  // 最后执行：兜底重跑会重新注入主线程 worker（beforeEach 已恢复现场，顺序仅保持习惯）
   it("worker 与 workerSrc 资产同时失败 → 注入主线程 handler 后重跑成功（3.1 兜底）", { timeout: 30000 }, async () => {
     const pdfjs = await import("pdfjs-dist");
-    const savedSrc = pdfjs.GlobalWorkerOptions.workerSrc;
+    const RealWorker = globalThis.Worker;
     try {
+      // 双失败 = Worker 构造被拦（同步抛错，替代慢网络失败）+ fake worker 加载器已 rejected
+      (globalThis as { Worker?: unknown }).Worker = class {
+        constructor() {
+          throw new Error("Worker blocked by CSP (test)");
+        }
+      };
+      delete (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker;
+      Object.defineProperty(pdfjs.PDFWorker, "_setupFakeWorkerGlobal", {
+        value: Promise.reject(new Error("workerSrc asset unavailable (test)")),
+        configurable: true,
+        writable: true,
+      });
       const bytes = buildPdf([
         { w: 612, h: 792, lines: [{ x: 50, y: 700, text: "Fallback extraction still works fine." }] },
       ]);
-      // 坏 workerUrl 模拟 release CSP 下 blob worker 被拦截且静态资产不可用的双重失败
-      const text = await extractPdfText(bytes.buffer as ArrayBuffer, { workerUrl: "/nonexistent-worker.mjs" });
+      const text = await extractPdfText(bytes.buffer as ArrayBuffer);
       expect(text).toContain("Fallback extraction still works fine.");
     } finally {
-      pdfjs.GlobalWorkerOptions.workerSrc = savedSrc;
-      delete (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker;
+      (globalThis as { Worker?: unknown }).Worker = RealWorker;
+      await injectMainThreadWorker();
     }
   });
 });
